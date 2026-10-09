@@ -1,0 +1,16 @@
+---
+name: looot-signals
+description: Run hiring, funding, news and leadership triggers through looot and write the new signals since the last run. Use when the user wants to know which companies are hiring a role, raised a round, or appointed a new head of sales.
+---
+
+# looot-signals
+
+Runs a trigger file once and writes only the signals not seen before.
+
+1. Check `LOOOT_TOKEN` is set. If not, tell the user to create an agent token at https://looot.ai/settings. Do not ask them to paste it into chat.
+2. Show the price first: `npm run signals -- --triggers triggers.yaml --dry-run`. Report the total and ask for a go-ahead when it is above $0.50.
+3. Run it with a cap: `npm run signals -- --triggers triggers.yaml --cap 1 --out signals-out`.
+4. Read the `.md` file in `signals-out/`. Report new signals per trigger with their evidence links, the amount spent, and any call that was skipped or pending.
+5. A call reported as pending is still running at the provider. Do not re-run it as failed. The next run reads it again for free.
+
+To add a trigger, edit `triggers.yaml` (types: hiring, funding, news, leadership; see `triggers.example.yaml`). Use `--demo` to try the flow with sample data and no token.

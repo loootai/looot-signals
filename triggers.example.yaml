@@ -1,0 +1,48 @@
+# One entry per signal you want. Edit this file, or edit it in the app under Triggers.
+# Prices are shown before every run. A run stops calling once its cap is reached.
+triggers:
+  - id: gtm-engineer-hiring
+    name: Hiring a GTM engineer
+    type: hiring
+    titles: ["GTM engineer", "growth engineer"]
+    maxAgeDays: 14
+    limit: 25
+
+  - id: clay-n8n-job-ads
+    name: Job ads that mention Clay or n8n
+    type: hiring
+    titles: ["revenue operations", "growth"]
+    keywords: ["Clay", "n8n"]
+    maxAgeDays: 14
+    limit: 10
+
+  - id: recent-rounds
+    name: Raised a seed or Series A in the last 30 days
+    type: funding
+    stages: ["seed", "series_a"]
+    maxAgeDays: 30
+    limit: 20
+
+  - id: new-head-of-sales
+    name: New head of sales
+    type: leadership
+    roles: ["head of sales", "VP sales"]
+    maxAgeDays: 14
+    limit: 10
+
+  - id: ai-sdr-news
+    name: AI SDR launches in the news
+    type: news
+    query: "AI SDR launch"
+    maxAgeDays: 7
+    limit: 10
+
+  # Structured job-change feed. Costs more per call than the news search above, so it starts off.
+  - id: head-of-sales-feed
+    name: New head of sales, structured feed
+    type: leadership
+    source: job_changes
+    roles: ["head of sales"]
+    enabled: false
+    maxAgeDays: 14
+    limit: 10

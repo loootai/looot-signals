@@ -1,0 +1,22 @@
+# looot-signals
+
+> Open-source signal feed: hiring, funding, news and leadership triggers, deduped into a dated feed with an evidence link per signal. Data comes from looot (https://looot.ai), one token, pay per call.
+
+## Run
+
+- Demo, no token: `npm run demo` (web UI on http://localhost:3220) or `npm run signals -- --demo`
+- Price only: `npm run signals -- --dry-run`
+- Real run: `LOOOT_TOKEN=... npm run signals -- --triggers triggers.yaml --cap 1 --out signals-out`
+
+## Files
+
+- triggers.example.yaml: the trigger format
+- src/lib/sources.ts: the looot endpoints and list prices used
+- src/lib/engine.ts: quote, cap, idempotency keys, pending runs
+- skills/looot-signals/SKILL.md: Claude Code skill
+
+## Rules
+
+- The cap is per run (`--cap`, default $1). Calls that would cross it are skipped.
+- A call still running when waiting stops is "pending", not failed.
+- Output: signals-YYYYMMDD-HHMMSS.json, .csv and .md with only the new signals.
