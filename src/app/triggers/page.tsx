@@ -17,7 +17,7 @@ export default async function TriggersPage() {
     perTrigger.set(c.triggerId, { calls: cur.calls + 1, micros: cur.micros + c.quotedMicros });
   }
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-16 pt-6 md:px-6">
+    <div className="max-w-4xl">
       <h1 className="text-20 font-medium tracking-tight">Triggers</h1>
       <p className="mt-1 text-13 text-mute">Each trigger is one or more looot calls. The price of a run is shown here and again before it starts.</p>
 

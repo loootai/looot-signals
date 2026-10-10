@@ -62,8 +62,8 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
   const exportQuery = new URLSearchParams(Object.entries(filter).filter(([, v]) => v).map(([k, v]) => [k, String(v)])).toString();
 
   return (
-    <div className="mx-auto max-w-4xl pb-16">
-      <header className="flex flex-wrap items-end justify-between gap-3 px-4 pb-4 pt-6 md:px-6">
+    <div className="max-w-4xl">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-4">
         <div>
           <h1 className="text-20 font-medium tracking-tight">Signal feed</h1>
           <p className="mt-1 text-13 text-mute">
@@ -75,7 +75,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
       </header>
 
       {multi.length > 0 ? (
-        <section aria-label="Companies with more than one kind of signal" className="mx-4 mb-4 rounded-panel border border-line bg-panel p-3 md:mx-6">
+        <section aria-label="Companies with more than one kind of signal" className="mb-4 rounded-panel border border-line bg-panel p-3">
           <h2 className="text-12 font-medium text-mute">Moving on more than one front</h2>
           <ul className="mt-2 flex flex-wrap gap-2">
             {multi.map((g) => (
@@ -90,7 +90,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
         </section>
       ) : null}
 
-      <form method="get" className="flex flex-wrap items-center gap-2 px-4 pb-3 md:px-6">
+      <form method="get" className="flex flex-wrap items-center gap-2 pb-3">
         <Input name="q" defaultValue={p.q ?? ""} placeholder="Search company or headline" aria-label="Search" className="w-full sm:w-56" />
         <Select name="trigger" defaultValue={p.trigger ?? ""} aria-label="Trigger" className="w-full sm:w-52">
           <option value="">All triggers</option>
@@ -121,14 +121,14 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
       </form>
 
       {groups.length === 0 ? (
-        <div className="mx-4 rounded-panel border border-dashed border-line-strong p-8 text-center md:mx-6">
+        <div className="rounded-panel border border-dashed border-line-strong p-8 text-center">
           <p className="text-14 font-medium">No signals match.</p>
           <p className="mt-1 text-13 text-mute">Widen the window, clear the filters, or run the triggers.</p>
         </div>
       ) : (
-        <div className="px-0 md:px-6">
+        <div>
           {groups.map((g) => (
-            <section key={g.day} className="mb-4 overflow-hidden border-y border-line bg-panel md:rounded-panel md:border">
+            <section key={g.day} className="mb-4 overflow-hidden rounded-panel border border-line bg-panel">
               <h2 className="sticky top-0 border-b border-line bg-panel px-4 py-1.5 text-12 font-medium text-mute md:px-6">
                 {g.label} <span className="num ml-1">{g.items.length}</span>
               </h2>
@@ -141,7 +141,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
           ))}
         </div>
       )}
-      <p className="px-4 text-12 text-mute md:px-6">
+      <p className="text-12 text-mute">
         <Download className="mr-1 inline size-3" />
         Dates are the provider&apos;s. A green dot marks signals found in the last run. Signals without a date are filed under the day they were first seen.
       </p>

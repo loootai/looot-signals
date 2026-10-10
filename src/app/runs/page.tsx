@@ -15,7 +15,7 @@ export default async function RunsPage() {
   const month = new Date().toISOString().slice(0, 7);
   const monthSpend = state.runs.filter((r) => r.startedAt.startsWith(month)).reduce((n, r) => n + r.spentMicros, 0);
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-16 pt-6 md:px-6">
+    <div className="max-w-4xl">
       <h1 className="text-20 font-medium tracking-tight">Runs and spend</h1>
       <p className="mt-1 text-13 text-mute">
         {runs.length} {runs.length === 1 ? "run" : "runs"} kept. {Object.keys(state.pending).length} calls pending. Spend this month: <span className="num">{usd(monthSpend)}</span>. A run still waiting on the provider is pending, never failed, and is read again for free on the next run.
