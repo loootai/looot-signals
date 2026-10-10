@@ -8,6 +8,10 @@
 - Price only: `npm run signals -- --dry-run`
 - Real run: `LOOOT_TOKEN=... npm run signals -- --triggers triggers.yaml --cap 1 --out signals-out`
 
+## Setup
+
+Node 22.12 or newer. `npm install --ignore-scripts`. The CLI reads `LOOOT_TOKEN` from the shell, not from .env.local (create a token in looot Settings, Agent tokens; a funded balance is needed for real runs). Copy triggers.example.yaml to triggers.yaml. Delete data/ after a --demo run. See README headings What you need, Run it with your own data, Spending, Troubleshooting.
+
 ## Files
 
 - triggers.example.yaml: the trigger format
