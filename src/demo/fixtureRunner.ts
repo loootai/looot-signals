@@ -1,9 +1,9 @@
 import type { LoootRun, LoootRunner } from "@/lib/looot";
 import { rowsOf } from "@/lib/parse";
-import { SOURCES } from "@/lib/sources";
+import { FOLLOW_UPS, SOURCES } from "@/lib/sources";
 import { fixtureBody } from "./fixtures";
 
-const BY_ENDPOINT = Object.fromEntries(Object.values(SOURCES).map((s) => [s.endpointId, s]));
+const BY_ENDPOINT = Object.fromEntries([...Object.values(SOURCES), ...Object.values(FOLLOW_UPS)].map((s) => [s.endpointId, s]));
 
 /**
  * A LoootRunner that answers from fixtures and never touches the network. Demo mode and tests use it.

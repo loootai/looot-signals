@@ -2,6 +2,24 @@
 
 Built from the GitHub release notes. Each version links to its release page.
 
+## 0.1.4 (2026-10-11)
+
+#### Founders and investors on funding triggers
+
+A funding trigger can now look up who founded each new company and who invested in its latest round. These were dropped earlier because no looot job was found. The catalog has them.
+
+What changed
+- New trigger fields `enrich` (`founders`, `investors`) and `enrichLimit` (1 to 10, default 3). Funding triggers on the funding source only.
+- `aviato-company-founders` (job `company.founders`) and `aviato-company-funding-rounds` (job `company.funding`), $0.05 per call each. One call per company and kind, after all searches have run.
+- Same spending rules as the searches: quote before the run (price times `enrichLimit`), the server-side cap checked before every call, a stable idempotency key per call, pending runs read again for free, a failed call costs nothing. The cap still cannot be raised by a request.
+- The feed shows founders (with LinkedIn links) and investors under the signal, with the endpoint and list price. CSV and webhook carry `founders` and `investors`.
+- `triggers.example.yaml` turns it on for `recent-rounds` with `enrichLimit: 2`. The example run is at most $0.731 (was $0.531). The demo run reads $0.38 (was $0.18).
+- 244 tests (was 215).
+
+Notes
+- The catalog has not verified either endpoint and lists no response fields. The parsers are tolerant and return nothing for a shape they do not understand. Expect to adjust them on the first real run.
+- Still dropped: board members, cap tables and a person-level investor graph. See "What was dropped" in the README.
+
 ## 0.1.3 (2026-10-11)
 
 #### Security release: admin sign-in

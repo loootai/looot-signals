@@ -14,4 +14,6 @@ Runs a trigger file once and writes only the signals not seen before.
 4. Read the `.md` file in `signals-out/`. Report new signals per trigger with their evidence links, the amount spent, and any call that was skipped or pending.
 5. A call reported as pending is still running at the provider. Do not re-run it as failed. The next run reads it again for free.
 
+A funding trigger can add `enrich: [founders, investors]` and `enrichLimit` to look up the founders and the latest-round investors of each new company at $0.05 per call. The dry run lists these lookups and their most expensive case; include them in the total you report.
+
 To add a trigger, edit `triggers.yaml` (types: hiring, funding, news, leadership; see `triggers.example.yaml`). Use `--demo` to try the flow with sample data and no token.

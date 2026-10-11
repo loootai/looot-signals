@@ -47,7 +47,7 @@ export default async function RunsPage() {
                 {r.calls.map((c, i) => (
                   <tr key={i}>
                     <Td>{c.triggerId}</Td>
-                    <Td className="num text-12">{c.endpointId}</Td>
+                    <Td className="num text-12">{c.endpointId}{c.domain ? <span className="block text-mute">{c.domain}</span> : null}</Td>
                     <Td>
                       <Badge tone={TONE[c.status]}>{c.status.replace("_", " ")}</Badge>
                       {c.error ? <span className="mt-0.5 block text-12 text-mute">{c.error}</span> : null}

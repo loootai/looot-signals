@@ -1,6 +1,6 @@
 import { parse } from "yaml";
 import { z } from "zod";
-import { SOURCES_FOR_TYPE } from "./sources";
+import { SOURCES_FOR_TYPE, sourceFor } from "./sources";
 import type { Trigger } from "./types";
 
 export class TriggerFileError extends Error {}
@@ -21,6 +21,8 @@ const TriggerSchema = z.object({
   countries: list,
   maxAgeDays: z.number().int().min(1).max(365).default(14),
   limit: z.number().int().min(1).max(100).default(25),
+  enrich: z.array(z.enum(["founders", "investors"])).default([]),
+  enrichLimit: z.number().int().min(1).max(10).default(3),
 });
 
 const FileSchema = z.object({ triggers: z.array(TriggerSchema).min(1).max(50) });
@@ -45,8 +47,10 @@ export function parseTriggers(text: string): Trigger[] {
     if (t.source && !SOURCES_FOR_TYPE[t.type].includes(t.source)) throw new TriggerFileError(`${t.id}: source "${t.source}" cannot answer a ${t.type} trigger. Use one of ${SOURCES_FOR_TYPE[t.type].join(", ")}.`);
     if (t.type === "hiring" && t.titles.length === 0 && t.keywords.length === 0) throw new TriggerFileError(`${t.id}: a hiring trigger needs titles or keywords.`);
     if (t.type === "hiring" && t.keywords.length > 0 && t.source === "jobs_index") throw new TriggerFileError(`${t.id}: keywords match the job description, which the index source does not return. Use jobs_text.`);
+    if (t.enrich.length > 0 && t.type !== "funding") throw new TriggerFileError(`${t.id}: enrich only works on funding triggers.`);
+    if (t.enrich.length > 0 && sourceFor({ ...t } as Trigger) !== "funding") throw new TriggerFileError(`${t.id}: enrich needs the company domain, which only the funding source returns. Remove source: news.`);
     if (t.type === "leadership" && t.roles.length === 0) throw new TriggerFileError(`${t.id}: a leadership trigger needs roles.`);
     if (t.type === "news" && !t.query) throw new TriggerFileError(`${t.id}: a news trigger needs a query.`);
   }
-  return res.data.triggers as Trigger[];
+  return res.data.triggers.map((t) => ({ ...t, enrich: [...new Set(t.enrich)] })) as Trigger[];
 }

@@ -1,5 +1,7 @@
 export type TriggerType = "hiring" | "funding" | "news" | "leadership";
 export type SourceId = "jobs_index" | "jobs_text" | "funding" | "news" | "job_changes";
+/** A paid lookup made for each new company a funding trigger finds. */
+export type FollowUpId = "founders" | "investors";
 
 /** One trigger the user defined. Edited as YAML, validated in triggers.ts. */
 export interface Trigger {
@@ -24,6 +26,17 @@ export interface Trigger {
   maxAgeDays: number;
   /** Most results one call may return. Result-priced sources are quoted at this number. */
   limit: number;
+  /** funding: lookups to run for each new company, one paid call per company and kind. */
+  enrich: FollowUpId[];
+  /** funding: most new companies to look up per run, per kind. The quote is price times this number. */
+  enrichLimit: number;
+}
+
+/** A founder of a company, as the provider names them. */
+export interface Founder {
+  name: string;
+  title: string | null;
+  linkedinUrl: string | null;
 }
 
 /** What a source parser returns before dedupe. */
@@ -40,6 +53,10 @@ export interface RawSignal {
 }
 
 export interface Signal extends RawSignal {
+  /** Set by the founders lookup. [] means the provider was asked and named nobody. undefined means not asked. */
+  founders?: Founder[];
+  /** Set by the investors lookup: investors in the company's latest round. [] means asked, none named. */
+  investors?: string[];
   /** Stable key: the same signal found again gets the same id. */
   id: string;
   triggerId: string;
@@ -59,6 +76,10 @@ export type CallStatus = "completed" | "failed" | "pending" | "skipped_budget" |
 export interface CallRecord {
   triggerId: string;
   source: SourceId;
+  /** Set when this call is a per-company lookup rather than the trigger's own search. */
+  followUp?: FollowUpId;
+  /** The company domain a lookup was made for. */
+  domain?: string;
   endpointId: string;
   idempotencyKey: string;
   status: CallStatus;

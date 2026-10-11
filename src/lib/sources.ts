@@ -1,4 +1,4 @@
-import type { SourceId, Trigger, TriggerType } from "./types";
+import type { FollowUpId, SourceId, Trigger, TriggerType } from "./types";
 
 export const PRICES_AS_OF = "2026-10-10";
 
@@ -24,6 +24,29 @@ export const SOURCES: Record<SourceId, SourceDef> = {
   funding: { id: "funding", label: "Financing events", jobId: "company.funding", endpointId: "predictleads-discover-financing-events", unit: "result", fallbackMicros: 10_000, shapeVerified: false },
   news: { id: "news", label: "Google News", jobId: "news.search", endpointId: "serper-news", unit: "call", fallbackMicros: 1000, shapeVerified: false },
   job_changes: { id: "job_changes", label: "Job change feed", jobId: "people.job.changes", endpointId: "signalbase-signals-job-changes", unit: "call", fallbackMicros: 108_000, shapeVerified: false },
+};
+
+export interface FollowUpDef {
+  id: FollowUpId;
+  label: string;
+  /** looot job id, kept as the catalog reference. */
+  jobId: string;
+  /** The pinned looot endpoint. No fallback routing, so the price is the one quoted. */
+  endpointId: string;
+  /** Both lookups are billed once per call. */
+  unit: "call";
+  /** Micro-dollars, read from the public catalog on PRICES_AS_OF. */
+  fallbackMicros: number;
+  /** false until someone has checked a real response body against the parser. */
+  shapeVerified: boolean;
+  /** The request body for one company. page and perPage are required by the endpoint. */
+  inputFor: (domain: string) => Record<string, unknown>;
+}
+
+/** Per-company lookups a funding trigger can run on each new company. Aviato, through looot, $0.05 a call. */
+export const FOLLOW_UPS: Record<FollowUpId, FollowUpDef> = {
+  founders: { id: "founders", label: "Founders", jobId: "company.founders", endpointId: "aviato-company-founders", unit: "call", fallbackMicros: 50_000, shapeVerified: false, inputFor: (domain) => ({ website: domain, page: 0, perPage: 5 }) },
+  investors: { id: "investors", label: "Investors in the latest round", jobId: "company.funding", endpointId: "aviato-company-funding-rounds", unit: "call", fallbackMicros: 50_000, shapeVerified: false, inputFor: (domain) => ({ website: domain, page: 0, perPage: 5 }) },
 };
 
 /** Sources a trigger type may use. The first one is the default. */

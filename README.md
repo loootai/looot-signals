@@ -33,7 +33,7 @@ npm run demo                              # web UI on http://localhost:3220
 npm run signals -- --demo --out signals-out
 ```
 
-The demo has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start if `LOOOT_TOKEN` is set or `data/state.json` exists, unless you also set an admin password. The demo uses made-up companies on the reserved `.example` domain. Evidence links in demo mode go nowhere on purpose. The CLI demo prints "19 new signals. Spent $0.18 of $1.00." and writes `.json`, `.csv` and `.md` files to `signals-out/`.
+The demo has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start if `LOOOT_TOKEN` is set or `data/state.json` exists, unless you also set an admin password. The demo uses made-up companies on the reserved `.example` domain. Evidence links in demo mode go nowhere on purpose. The CLI demo prints "19 new signals. Spent $0.38 of $1.00." and writes `.json`, `.csv` and `.md` files to `signals-out/`.
 
 The CLI demo also writes `data/state.json`. Delete `data/` before your first real run so demo signals do not count as already seen.
 
@@ -76,10 +76,12 @@ Calls this run (list prices dated 2026-10-10):
   gtm-engineer-hiring      anyapi-run-linkedin-jobs-thin                $0.0005  growth engineer
   clay-n8n-job-ads         theirstack-jobs-search                       $0.3270  revenue operations, growth, Clay, n8n
   recent-rounds            predictleads-discover-financing-events       $0.2000  seed, series_a
+  recent-rounds            aviato-company-founders                      $0.1000  founders of up to 2 new companies, company.founders
+  recent-rounds            aviato-company-funding-rounds                $0.1000  investors in the latest round of up to 2 new companies, company.funding
   new-head-of-sales        serper-news                                  $0.0010  ("appoints" OR "names" OR "hires" OR "promotes") "head of sales"
   new-head-of-sales        serper-news                                  $0.0010  ("appoints" OR "names" OR "hires" OR "promotes") "VP sales"
   ai-sdr-news              serper-news                                  $0.0010  AI SDR launch
-Total at most $0.5310 for 7 calls. Cap $1.00.
+Total at most $0.7310 for 11 calls. Cap $1.00.
 Dry run: no looot call was made and nothing was written.
 ```
 
@@ -96,7 +98,8 @@ CLI options are `--triggers`, `--out`, `--state`, `--cap` (dollars, default 1), 
 
 - The quote shows before any paid action. In the CLI it is `--dry-run`. In the UI it is a price dialog that sends back the amount you confirmed. If the live price is higher than that amount, nothing is called.
 - The cap is `--cap` in the CLI and `SIGNALS_CAP_USD` in the web app. Default $1 per run. A call that would cross it is skipped and listed as `skipped_budget`.
-- Typical run at list price. The five triggers in the example file cost at most $0.531 (the dry run above). With the sample answers the same run reads as $0.18, because most calls return fewer rows than their limit. No real run was priced.
+- Typical run at list price. The five triggers in the example file cost at most $0.731 (the dry run above). That is $0.531 for the searches plus $0.20 for founder and investor lookups (2 companies x 2 lookups x $0.05). With the sample answers the same run reads as $0.38, because most searches return fewer rows than their limit and the lookups are the only part billed in full. No real run was priced.
+- Founder and investor lookups are per company and run after every search, so they never use up the cap before a search has run. Each lookup is checked against the cap on its own, has its own idempotency key, and is skipped (and listed as `skipped_budget`) when it would cross the cap. A company that already has the lookup is never paid for again.
 - Failed calls are not charged by looot.
 - Every call has a stable `idempotencyKey` made from the trigger, the endpoint, a hash of the input and the day. Running the same trigger twice in a day replays the stored run and does not charge twice.
 - A call still running when waiting stops is `pending`, never failed. Its run id is stored and read again, free, on the next run.
@@ -121,6 +124,8 @@ CLI options are `--triggers`, `--out`, `--state`, `--cap` (dollars, default 1), 
 | `countries` | Optional country codes. The first one narrows the search. |
 | `maxAgeDays` | Default 14, range 1 to 365. Older signals are dropped. |
 | `limit` | Default 25, range 1 to 100. Rows per call. Some sources cap it at 25. |
+| `enrich` | Funding triggers on the funding source only. `founders`, `investors`, or both. Runs one paid lookup per company and kind. Default none. |
+| `enrichLimit` | Default 3, range 1 to 10. Most companies looked up per kind per run. The quote is the price times this number. |
 
 The four types:
 
@@ -142,8 +147,21 @@ Prices are looot list prices read from the public catalog on 2026-10-10. Result-
 | Funding | company.funding | predictleads-discover-financing-events | $0.01 per result |
 | News and leadership | news.search | serper-news | $0.001 per call |
 | Leadership, structured | people.job.changes | signalbase-signals-job-changes | $0.108 per call |
+| Founders of a funded company | company.founders | aviato-company-founders | $0.05 per call |
+| Investors in a funded company's latest round | company.funding | aviato-company-funding-rounds | $0.05 per call |
 
-The five triggers in the example file cost at most $0.531 per run at list price. With the sample answers the same run reads as $0.18, because most calls return fewer rows than their limit. Treat $0.18 as an illustration. No real run was priced.
+The five triggers in the example file cost at most $0.731 per run at list price: $0.531 for the searches (0.0005 x 2 + 0.327 + 0.20 + 0.001 x 3) plus $0.20 for lookups (founders 2 x $0.05 + investors 2 x $0.05). With the sample answers the same run reads as $0.38 ($0.18 for the searches plus 4 lookups x $0.05). Treat $0.38 as an illustration. No real run was priced.
+
+### Founders and investors
+
+A funding trigger can look up who is behind each company it finds. Add `enrich: ["founders", "investors"]` and an `enrichLimit` to the trigger. After the searches finish, the run takes the newest companies that have a domain and no lookup yet, up to `enrichLimit` per kind, and makes one call each:
+
+- Founders: `aviato-company-founders` (job `company.founders`), input `website`, `page: 0`, `perPage: 5`. Result: name, title and LinkedIn link per founder.
+- Investors: `aviato-company-funding-rounds` (job `company.funding`), same input. Result: the investors named in the company's latest round. If that round names none, the newest round that does.
+
+Both are billed $0.05 per call, whatever the number of founders or investors returned. The feed shows the result under the signal with the endpoint and its list price. The CSV and the webhook carry `founders` and `investors`. A company the provider returns nothing for is marked as looked up and is not charged again. A lookup that fails costs nothing and is tried again on the next run. The funding source returns a domain; the news source does not, so `enrich` is refused on it.
+
+The catalog lists no response fields for these two endpoints and has not verified them (`verification.state` is `unverified`). The parsers read several usual field names and return nothing for an answer they do not understand. The fixtures follow the endpoint descriptions ("fundingRounds with announcedOn and the investor list"), not a captured response. Expect to adjust them on the first real run.
 
 ## Dedupe
 
@@ -233,13 +251,15 @@ How to file an issue. Open one at https://github.com/loootai/looot-signals/issue
 - No paid looot run was made. Response parsing is built from each provider's public docs and from fixtures in `src/demo/fixtures.ts`. Parsers read several field names per value and return nothing for an answer they do not understand, but no real response body was checked. Expect to adjust them on the first real run.
 - The `postedLimit` wording for the LinkedIn job index and the `date` field names of the job-change feed come from parameter descriptions, not from a live call.
 - News headlines have no structured company. The company is a guess from the headline and is empty when the pattern does not fit.
-- Demo and tests run against fixtures. 215 tests cover parsers, dedupe, the engine (cap, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap and rate limit), with HTTP mocked.
+- Demo and tests run against fixtures. 244 tests cover parsers, dedupe, the engine (cap, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the founder and investor lookups (quote, cap, idempotency keys, pending, failures), the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap and rate limit), with HTTP mocked.
 
 If a parser fails on a real response, open an issue with the raw response body (see Troubleshooting).
 
 ## What was dropped
 
-Harmonic style person-level and investor data (founders, board, investor graphs) is not covered by a single looot job at an affordable price, so there is no investor view. Funding is limited to financing events.
+Founders and the investors in a company's latest round are covered since 0.1.4 (see Founders and investors). Still dropped:
+
+- Board members, cap tables and a person-level investor graph (every company an investor backed, partner names, check sizes). I searched the free looot catalog for `board members`, `cap table`, `investor founders`, `venture capital`, `angel investors`, `investor deals` and `portfolio companies`. The closest hits are `fundable-investor-deals` and `fundable-investors` ($0.05 per result, so a portfolio costs $0.05 times its size), `signalbase-signals-investors` ($0.108 per call) and `predictleads-discover-portfolio-companies-connections` ($0.01 per result). None returns board seats or ownership, and a per-investor view would need its own screen. Not built.
 
 ## Install for agents
 

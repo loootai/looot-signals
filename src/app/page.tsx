@@ -9,6 +9,7 @@ import { validateWebhookUrl } from "@/lib/netGuard";
 import { filterSignals, groupByDay, multiSignalCompanies } from "@/lib/feed";
 import { hostLabel, isSafeLink } from "@/lib/format";
 import { usd } from "@/lib/money";
+import { FOLLOW_UPS } from "@/lib/sources";
 import { getState, getTriggers } from "@/lib/service";
 import type { Signal, TriggerType } from "@/lib/types";
 
@@ -32,6 +33,47 @@ function Row({ s, fresh, triggerNames }: { s: Signal; fresh: boolean; triggerNam
         </div>
         <p className="mt-1 text-13">{s.headline}</p>
         {s.detail ? <p className="mt-0.5 text-12 text-mute">{s.detail}</p> : null}
+        {s.founders !== undefined || s.investors !== undefined ? (
+          <dl className="mt-1.5 grid gap-x-3 gap-y-1 text-12 sm:grid-cols-[auto_1fr]">
+            {s.founders !== undefined ? (
+              <>
+                <dt className="font-medium text-mute">Founders</dt>
+                <dd className="min-w-0">
+                  {s.founders.length === 0 ? (
+                    <span className="text-mute">None named by the provider</span>
+                  ) : (
+                    s.founders.map((f, i) => (
+                      <span key={f.name}>
+                        {i > 0 ? ", " : null}
+                        {isSafeLink(f.linkedinUrl) ? (
+                          <a href={f.linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-link underline-offset-2 hover:underline">
+                            {f.name}
+                          </a>
+                        ) : (
+                          <span className="font-medium">{f.name}</span>
+                        )}
+                        {f.title ? <span className="text-mute">, {f.title}</span> : null}
+                      </span>
+                    ))
+                  )}
+                </dd>
+              </>
+            ) : null}
+            {s.investors !== undefined ? (
+              <>
+                <dt className="font-medium text-mute">Investors</dt>
+                <dd className="min-w-0">{s.investors.length === 0 ? <span className="text-mute">None named by the provider</span> : <span className="font-medium">{s.investors.join(", ")}</span>}</dd>
+              </>
+            ) : null}
+            <dt className="sr-only">Source</dt>
+            <dd className="num text-mute sm:col-start-2">
+              {[s.founders !== undefined ? FOLLOW_UPS.founders : null, s.investors !== undefined ? FOLLOW_UPS.investors : null]
+                .filter((f): f is (typeof FOLLOW_UPS)[keyof typeof FOLLOW_UPS] => f !== null)
+                .map((f) => `${f.endpointId} ${usd(f.fallbackMicros)} a lookup`)
+                .join(", ")}
+            </dd>
+          </dl>
+        ) : null}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-12 text-mute">
           {isSafeLink(s.evidenceUrl) ? (
             <a href={s.evidenceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-medium text-link underline-offset-2 hover:underline">

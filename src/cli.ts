@@ -9,7 +9,7 @@ import { sendWebhook, toCsv, toMarkdown } from "@/lib/export";
 import { LoootError, loootFromEnv } from "@/lib/looot";
 import { toMicros, usd, usdPrecise } from "@/lib/money";
 import { FALLBACK_PRICES, fetchPrices } from "@/lib/prices";
-import { PRICES_AS_OF, SOURCES } from "@/lib/sources";
+import { PRICES_AS_OF } from "@/lib/sources";
 import { readState, writeState } from "@/lib/store";
 import { parseTriggers, TriggerFileError } from "@/lib/triggers";
 
@@ -55,8 +55,8 @@ async function main(): Promise<void> {
 
   const printPlan = (plan: ReturnType<typeof planCalls>, note: string) => {
     console.log(`Calls this run (${note}):`);
-    for (const c of plan) console.log(`  ${c.trigger.id.padEnd(24)} ${SOURCES[c.source].endpointId.padEnd(42)} ${usdPrecise(c.quotedMicros).padStart(9)}  ${c.label}`);
-    console.log(`Total at most ${usdPrecise(planTotal(plan))} for ${plan.length} calls. Cap ${usd(capMicros)}.`);
+    for (const c of plan) console.log(`  ${c.trigger.id.padEnd(24)} ${c.endpointId.padEnd(42)} ${usdPrecise(c.quotedMicros).padStart(9)}  ${c.label}`);
+    console.log(`Total at most ${usdPrecise(planTotal(plan))} for ${plan.reduce((n, c) => n + (c.followUp ? c.trigger.enrichLimit : 1), 0)} calls. Cap ${usd(capMicros)}.`);
   };
 
   if (args["dry-run"]) {

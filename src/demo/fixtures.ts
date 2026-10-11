@@ -33,6 +33,23 @@ const NEWS = [
   ["Harbor Health launches an AI SDR pilot", "harbor-health", 2, "Health Tech Brief"],
 ] as const;
 
+// Founders and rounds for the funding companies above. The shapes follow the Aviato endpoint descriptions in the looot catalog
+// ("fundingRounds with announcedOn and the investor list"). The catalog lists no response fields, so these are guesses.
+const FOUNDERS: Record<string, [string, string, string][]> = {
+  "brightpath.example": [["Maya Okafor", "Co-founder and CEO", "maya-okafor-example"], ["Luis Brandt", "Co-founder and CTO", "luis-brandt-example"]],
+  "kestrel.example": [["Priya Raman", "Founder and CEO", "priya-raman-example"]],
+  "tidepool.example": [["Jonas Weber", "Co-founder and CEO", "jonas-weber-example"], ["Ines Duarte", "Co-founder", "ines-duarte-example"]],
+  "lumenfreight.example": [["Tom Alvarez", "Founder and CEO", "tom-alvarez-example"]],
+  "oakline.example": [["Hana Kim", "Co-founder and CEO", "hana-kim-example"]],
+};
+const ROUNDS: Record<string, [number, string, string[]][]> = {
+  "brightpath.example": [[3, "Seed", ["Stonebridge Ventures", "Alder Capital"]]],
+  "kestrel.example": [[400, "Seed", ["Fern Hill Partners"]], [6, "Series A", ["Northlight Capital", "Fern Hill Partners", "Dana Whitcombe"]]],
+  "tidepool.example": [[12, "Seed", ["Pier 9 Ventures"]]],
+  "lumenfreight.example": [[19, "Series A", ["Granite Road Capital"]]],
+  "oakline.example": [[27, "Series B", ["Meridian Growth", "Granite Road Capital"]]],
+};
+
 /** A provider-shaped answer for one endpoint. `input` is what the call sent, so limits are honoured. */
 export function fixtureBody(endpointId: string, input: Record<string, unknown>, now: Date): unknown {
   const limit = typeof input.limit === "number" ? input.limit : typeof input.num === "number" ? input.num : 25;
@@ -58,6 +75,14 @@ export function fixtureBody(endpointId: string, input: Record<string, unknown>, 
   }
   if (endpointId === "signalbase-signals-job-changes") {
     return { data: [{ person_name: "Sam K.", new_role: String(input.new_role ?? "Head of Sales"), company_name: "Tidepool", company_domain: "tidepool.example", signal_date: day(now, 2).slice(0, 10), person_linkedin_url: "https://www.linkedin.com/in/sam-k-example" }] };
+  }
+  if (endpointId === "aviato-company-founders") {
+    const domain = String(input.website ?? "");
+    return { items: (FOUNDERS[domain] ?? []).map(([fullName, headline, slug], i) => ({ id: `p-${domain}-${i}`, fullName, headline, linkedinURL: `https://www.linkedin.com/in/${slug}` })), pagination: { page: 0, perPage: 5 } };
+  }
+  if (endpointId === "aviato-company-funding-rounds") {
+    const domain = String(input.website ?? "");
+    return { fundingRounds: (ROUNDS[domain] ?? []).map(([ago, roundName, investors]) => ({ announcedOn: day(now, ago).slice(0, 10), roundName, investors: investors.map((name) => ({ name })) })) };
   }
   return {};
 }

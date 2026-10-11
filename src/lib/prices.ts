@@ -1,13 +1,13 @@
-import { PRICES_AS_OF, SOURCES } from "./sources";
+import { FOLLOW_UPS, PRICES_AS_OF, SOURCES } from "./sources";
 
 /** Price per call (or per result) in micros for each endpoint id. */
 export type PriceMap = Record<string, number>;
 
 /** Every endpoint id this app can call. */
-export const ENDPOINT_IDS: string[] = Object.values(SOURCES).map((s) => s.endpointId);
+export const ENDPOINT_IDS: string[] = [...Object.values(SOURCES).map((s) => s.endpointId), ...Object.values(FOLLOW_UPS).map((f) => f.endpointId)];
 
 /** Prices dated PRICES_AS_OF, used for --dry-run and demo mode, and shown when the catalog cannot be read. */
-export const FALLBACK_PRICES: PriceMap = Object.fromEntries(Object.values(SOURCES).map((s) => [s.endpointId, s.fallbackMicros]));
+export const FALLBACK_PRICES: PriceMap = Object.fromEntries([...Object.values(SOURCES), ...Object.values(FOLLOW_UPS)].map((s) => [s.endpointId, s.fallbackMicros]));
 
 export interface PriceResult {
   prices: PriceMap;

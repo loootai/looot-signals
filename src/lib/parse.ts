@@ -1,4 +1,4 @@
-import type { RawSignal, SourceId } from "./types";
+import type { Founder, RawSignal, SourceId } from "./types";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -166,6 +166,64 @@ export function parseJobChanges(result: unknown, now: Date): RawSignal[] {
       },
     ];
   });
+}
+
+/**
+ * Founders of one company (Aviato style). The catalog documents no response fields, so this reads several
+ * usual names for each value and returns nothing for an answer it does not understand. Shape not verified.
+ */
+export function parseFounders(result: unknown): Founder[] {
+  const seen = new Set<string>();
+  return rowsOf(result, ["items", "founders", "data", "results"]).flatMap((r) => {
+    const name = pick(r, ["fullName", "full_name", "name"]) ?? ([pick(r, ["firstName", "first_name"]), pick(r, ["lastName", "last_name"])].filter(Boolean).join(" ") || null);
+    if (!name || seen.has(name.toLowerCase())) return [];
+    seen.add(name.toLowerCase());
+    return [{ name, title: pick(r, ["headline", "title", "role", "position", "jobTitle"]), linkedinUrl: pick(r, ["linkedinURL", "linkedinUrl", "linkedin_url", "linkedin"]) }];
+  });
+}
+
+function nameOfInvestor(v: unknown): string | null {
+  if (typeof v === "string") return v.trim() || null;
+  if (!isObj(v)) return null;
+  const direct = pick(v, ["name", "fullName", "full_name", "investorName", "investor_name"]);
+  if (direct) return direct;
+  for (const k of ["investor", "company", "person", "organization"]) {
+    const inner = v[k];
+    if (isObj(inner)) {
+      const n = pick(inner, ["name", "fullName", "full_name"]);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+function investorsOfRound(round: Obj): string[] {
+  const names: string[] = [];
+  for (const k of ["investors", "investorList", "investor_list", "leadInvestors", "lead_investors"]) {
+    const list = round[k];
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const n = nameOfInvestor(item);
+      if (n && !names.some((x) => x.toLowerCase() === n.toLowerCase())) names.push(n);
+    }
+  }
+  return names;
+}
+
+/**
+ * Investors in a company's latest round, from a funding-rounds answer (Aviato style: `fundingRounds` with
+ * `announcedOn` and an investor list). Uses the round with the newest date; if it names nobody, the newest
+ * round that does. The catalog documents no response fields, so this is tolerant and the shape is not verified.
+ */
+export function parseInvestors(result: unknown): string[] {
+  const rounds = rowsOf(result, ["fundingRounds", "funding_rounds", "rounds", "items", "data", "results"]);
+  const dated = rounds.map((r, i) => ({ r, i, at: pick(r, ["announcedOn", "announced_on", "date", "effective_date", "closedOn"]) ?? "" }));
+  dated.sort((a, b) => b.at.localeCompare(a.at) || a.i - b.i);
+  for (const { r } of dated) {
+    const names = investorsOfRound(r);
+    if (names.length > 0) return names;
+  }
+  return [];
 }
 
 /** Parses an endpoint answer into signals. `keywords` lets the job-text parser say which keyword matched. */

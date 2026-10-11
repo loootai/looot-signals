@@ -4,7 +4,7 @@ import { TriggersEditor } from "@/components/TriggersEditor";
 import { Badge, Table, Td, Th } from "@/components/ui/misc";
 import { usd, usdPrecise } from "@/lib/money";
 import { getTriggers, getTriggersText, quoteNow } from "@/lib/service";
-import { SOURCES, sourceFor } from "@/lib/sources";
+import { FOLLOW_UPS, SOURCES, sourceFor } from "@/lib/sources";
 
 export const metadata: Metadata = { title: "Triggers" };
 export const dynamic = "force-dynamic";
@@ -46,6 +46,7 @@ export default async function TriggersPage() {
                   <Td>
                     {def.label}
                     <span className="num block text-12 text-mute">{def.endpointId}</span>
+                    {t.enrich.length > 0 ? <span className="block text-12 text-mute">Then {t.enrich.map((id) => FOLLOW_UPS[id].label.toLowerCase()).join(" and ")} for up to {t.enrichLimit} new companies, {t.enrich.map((id) => FOLLOW_UPS[id].endpointId).join(", ")}</span> : null}
                   </Td>
                   <Td className="num text-right">{q?.calls ?? 0}</Td>
                   <Td className="num text-right">{q ? usdPrecise(q.micros) : "$0.00"}</Td>

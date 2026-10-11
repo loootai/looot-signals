@@ -15,7 +15,7 @@ Node 22.12 or newer. `npm install --ignore-scripts`. The CLI reads `LOOOT_TOKEN`
 ## Files
 
 - triggers.example.yaml: the trigger format
-- src/lib/sources.ts: the looot endpoints and list prices used
+- src/lib/sources.ts: the looot endpoints and list prices used (searches and the per-company founder and investor lookups)
 - src/lib/engine.ts: quote, cap, idempotency keys, pending runs
 - skills/looot-signals/SKILL.md: Claude Code skill
 
@@ -23,4 +23,5 @@ Node 22.12 or newer. `npm install --ignore-scripts`. The CLI reads `LOOOT_TOKEN`
 
 - The cap is per run (`--cap`, default $1). Calls that would cross it are skipped.
 - A call still running when waiting stops is "pending", not failed.
+- Founder and investor lookups ($0.05 each, Aviato) run per new company after the searches, each checked against the cap.
 - Output: signals-YYYYMMDD-HHMMSS.json, .csv and .md with only the new signals.

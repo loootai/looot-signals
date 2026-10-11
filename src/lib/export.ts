@@ -5,7 +5,7 @@ import { validateWebhookUrl, resolveSafe, type Lookup } from "./netGuard";
 import { usd } from "./money";
 import type { RunRecord, Signal } from "./types";
 
-const COLUMNS = ["detected_at", "occurred_at", "type", "trigger", "company", "domain", "headline", "detail", "evidence_url", "source", "endpoint"] as const;
+const COLUMNS = ["detected_at", "occurred_at", "type", "trigger", "company", "domain", "headline", "detail", "evidence_url", "source", "endpoint", "founders", "investors"] as const;
 
 function cell(v: string | null | undefined): string {
   const s = v ?? "";
@@ -17,7 +17,7 @@ function cell(v: string | null | undefined): string {
 /** Signals as CSV, newest first. Cells that start like a formula get a leading quote. */
 export function toCsv(signals: Signal[]): string {
   const rows = [...signals].sort((a, b) => (b.occurredAt ?? b.firstSeenAt).localeCompare(a.occurredAt ?? a.firstSeenAt));
-  const lines = rows.map((s) => [s.firstSeenAt, s.occurredAt, s.type, s.triggerName, s.company, s.domain, s.headline, s.detail, s.evidenceUrl, s.source, s.endpointId].map((v) => cell(v)).join(","));
+  const lines = rows.map((s) => [s.firstSeenAt, s.occurredAt, s.type, s.triggerName, s.company, s.domain, s.headline, s.detail, s.evidenceUrl, s.source, s.endpointId, (s.founders ?? []).map((f) => (f.title ? `${f.name} (${f.title})` : f.name)).join("; "), (s.investors ?? []).join("; ")].map((v) => cell(v)).join(","));
   return `${COLUMNS.join(",")}\n${lines.join("\n")}${lines.length > 0 ? "\n" : ""}`;
 }
 
