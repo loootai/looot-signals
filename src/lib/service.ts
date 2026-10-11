@@ -1,10 +1,11 @@
 import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { FixtureRunner } from "@/demo/fixtureRunner";
+import { Budget, type BudgetStatus } from "./budget";
 import { IS_DEMO, now } from "./clock";
-import { planCalls, planTotal, runTriggers, type PlannedCall } from "./engine";
+import { payableMicros, planCalls, planTotal, runTriggers, type PlannedCall } from "./engine";
 import { loootFromEnv } from "./looot";
-import { toMicros } from "./money";
+import { toMicros, usd } from "./money";
 import { fetchPrices, FALLBACK_PRICES, type PriceResult } from "./prices";
 import { readState, statePath, triggersPath, writeState } from "./store";
 import { parseTriggers } from "./triggers";
@@ -12,9 +13,27 @@ import { EMPTY_STATE, type RunRecord, type SignalState, type Trigger } from "./t
 
 const g = globalThis as unknown as { __signalsDemo?: { state: SignalState; triggersText: string } };
 
-/** Default cap for one run, in dollars. SIGNALS_CAP_USD changes it. */
+/** Cap for one run, in dollars. Server config only (SIGNALS_CAP_USD, default 1). No request can change it. */
 export function capMicros(): number {
   return toMicros(process.env.SIGNALS_CAP_USD ?? "1");
+}
+
+/** The period budget file. Demo mode only reads it, so a demo shows the owner's real numbers and writes nothing. */
+export function getBudget(): Budget {
+  return new Budget();
+}
+
+/** Used, reserved and remaining for today and this month. */
+export async function budgetStatus(at: Date = new Date()): Promise<BudgetStatus> {
+  return getBudget().status(at);
+}
+
+/** Owner only (the route checks the session and the CSRF token). Saves the daily and monthly budget in dollars. */
+export async function setBudget(input: { dailyUsd: unknown; monthlyUsd: unknown }): Promise<BudgetStatus> {
+  if (IS_DEMO) throw new Error("Demo mode has no budget to change.");
+  const b = getBudget();
+  await b.setLimits({ dailyMicros: toMicros(Number(input.dailyUsd)), monthlyMicros: toMicros(Number(input.monthlyUsd)) });
+  return b.status();
 }
 
 export function getTriggersText(): string {
@@ -73,11 +92,13 @@ export async function quoteNow(): Promise<Quote> {
   };
 }
 
-export type RunNowResult = { ok: true; run: RunRecord } | { ok: false; code: "blocked_price" | "no_token"; message: string };
+export type RunNowResult = { ok: true; run: RunRecord } | { ok: false; code: "blocked_price" | "blocked_budget" | "no_token"; message: string };
 
 /**
  * Runs every enabled trigger. Re-reads live prices first and refuses when the total is above the
  * amount the user confirmed on screen, so a price change between the quote and the click cannot overspend.
+ * The confirmed amount is a price check only. It does not set the cap: the cap is the server's.
+ * Check order: quote, cap per run, atomic reservation against the period budget (per call), then the call.
  */
 export async function runNow(confirmedMaxMicros: number): Promise<RunNowResult> {
   const triggers = getTriggers();
@@ -85,7 +106,7 @@ export async function runNow(confirmedMaxMicros: number): Promise<RunNowResult> 
   const t = now();
   const total = planTotal(planCalls(triggers, priced.prices, t));
   if (total > confirmedMaxMicros) return { ok: false, code: "blocked_price", message: `The price is now ${total} micro-dollars a run, above the ${confirmedMaxMicros} you confirmed. Nothing was called.` };
-  const cap = Math.min(capMicros(), confirmedMaxMicros);
+  const cap = capMicros();
   let looot;
   if (IS_DEMO) looot = new FixtureRunner(t);
   else {
@@ -95,7 +116,15 @@ export async function runNow(confirmedMaxMicros: number): Promise<RunNowResult> 
       return { ok: false, code: "no_token", message: "LOOOT_TOKEN is not set on the server." };
     }
   }
-  const { state, run } = await runTriggers({ triggers, state: await getState(), looot, prices: priced.prices, unpriced: priced.unread, capMicros: cap, now: t });
+  // Runs that ended since last time settle first. Calls a stored result answers cost nothing, so they are not counted.
+  const budget = IS_DEMO ? undefined : getBudget();
+  if (budget) {
+    await budget.reconcile(looot);
+    const room = await budget.status(t);
+    const payable = await payableMicros(planCalls(triggers, priced.prices, t), budget, t);
+    if (payable > room.remainingMicros) return { ok: false, code: "blocked_budget", message: `The run needs up to ${usd(payable)}, above what is left of the budget (${usd(room.remainingMicros)}: ${usd(room.day.remainingMicros)} today, ${usd(room.month.remainingMicros)} this month). Raise the budget on the Costs page, or wait for the period to roll over. Nothing was called.` };
+  }
+  const { state, run } = await runTriggers({ triggers, state: await getState(), looot, prices: priced.prices, unpriced: priced.unread, capMicros: cap, ledger: budget, now: t });
   await saveState(state);
   return { ok: true, run };
 }

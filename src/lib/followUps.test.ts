@@ -161,7 +161,7 @@ describe("runTriggers with follow-ups", () => {
     await run(looot);
     const keys = looot.calls.filter((c) => c.endpointId.startsWith("aviato-")).map((c) => c.idempotencyKey);
     expect(new Set(keys).size).toBe(4);
-    expect(keys.every((k) => k.startsWith("looot-signals:rounds:aviato-") && k.endsWith(":2026-10-10"))).toBe(true);
+    expect(keys.every((k) => k.startsWith("looot-signals:aviato-") && /:p\d+$/.test(k) && !/\d{4}-\d{2}-\d{2}/.test(k))).toBe(true);
     const again = new FixtureRunner(NOW);
     await run(again);
     expect(again.calls.filter((c) => c.endpointId.startsWith("aviato-")).map((c) => c.idempotencyKey)).toEqual(keys);
@@ -174,7 +174,7 @@ describe("runTriggers with follow-ups", () => {
     const { run: r } = await run(priced, { capMicros: 200_000 });
     const follow = r.calls.filter((c) => c.followUp);
     expect(follow.filter((c) => c.status === "completed")).toHaveLength(2);
-    expect(follow.filter((c) => c.status === "skipped_budget")).toHaveLength(2);
+    expect(follow.filter((c) => c.status === "skipped_cap")).toHaveLength(2);
     expect(r.spentMicros).toBeLessThanOrEqual(200_000);
   });
 
@@ -242,7 +242,7 @@ describe("mocked HTTP", () => {
     const { state } = await runTriggers({ triggers: TRIGGERS.map((t) => ({ ...t, enrich: ["founders" as const], enrichLimit: 1 })), state: empty(), looot: { runAndWait: (e, i, k) => (e.startsWith("aviato-") ? client.runAndWait(e, i, k) : new FixtureRunner(NOW).runAndWait(e, i, k)), getRun: (id) => client.getRun(id) }, prices: FALLBACK_PRICES, capMicros: 1_000_000, now: NOW });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.looot.ai/v1/runs?wait=30");
-    expect(JSON.parse(String(init.body))).toMatchObject({ endpointId: "aviato-company-founders", input: { website: "brightpath.example", page: 0, perPage: 5 }, idempotencyKey: expect.stringContaining("looot-signals:rounds:aviato-company-founders:") });
+    expect(JSON.parse(String(init.body))).toMatchObject({ endpointId: "aviato-company-founders", input: { website: "brightpath.example", page: 0, perPage: 5 }, idempotencyKey: expect.stringContaining("looot-signals:aviato-company-founders:") });
     expect(state.signals.find((s) => s.domain === "brightpath.example")?.founders).toHaveLength(2);
   });
 });

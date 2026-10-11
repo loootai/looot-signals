@@ -41,7 +41,7 @@ describe("planCalls", () => {
     const off = TRIGGERS.map((t) => ({ ...t, enabled: false }));
     expect(planCalls(off, FALLBACK_PRICES, NOW)).toEqual([]);
   });
-  it("gives the same idempotency key to the same input on the same day, and a new one the next day", () => {
+  it("gives the same idempotency key to the same input inside one refresh period, and a new one in the next period", () => {
     const a = planCalls(TRIGGERS, FALLBACK_PRICES, NOW).map((c) => c.idempotencyKey);
     const b = planCalls(TRIGGERS, FALLBACK_PRICES, new Date("2026-10-10T20:00:00Z")).map((c) => c.idempotencyKey);
     const c = planCalls(TRIGGERS, FALLBACK_PRICES, new Date("2026-10-11T09:00:00Z")).map((c) => c.idempotencyKey);
@@ -71,8 +71,8 @@ describe("runTriggers", () => {
     const looot = { calls: inner.calls, getRun: inner.getRun.bind(inner), runAndWait: async (e: string, i: Record<string, unknown>, k: string) => ({ ...(await inner.runAndWait(e, i, k)), actualCost: FALLBACK_PRICES[e] / 1e6 }) };
     const { run } = await runTriggers({ triggers: TRIGGERS, state: empty(), looot, prices: { ...FALLBACK_PRICES }, capMicros: 150_000, now: NOW });
     const byTrigger = Object.fromEntries(run.calls.map((c) => [`${c.triggerId}:${c.status}`, true]));
-    expect(byTrigger["rounds:skipped_budget"]).toBe(true);
-    expect(byTrigger["clay:skipped_budget"]).toBe(true);
+    expect(byTrigger["rounds:skipped_cap"]).toBe(true);
+    expect(byTrigger["clay:skipped_cap"]).toBe(true);
     expect(looot.calls.map((c) => c.endpointId)).toEqual(["anyapi-run-linkedin-jobs-thin", "anyapi-run-linkedin-jobs-thin"]);
   });
 

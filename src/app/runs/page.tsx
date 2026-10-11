@@ -8,7 +8,7 @@ import type { CallStatus } from "@/lib/types";
 export const metadata: Metadata = { title: "Runs and spend" };
 export const dynamic = "force-dynamic";
 
-const TONE: Record<CallStatus, "brand" | "high" | "amber" | "neutral"> = { completed: "brand", failed: "high", pending: "amber", skipped_budget: "amber", skipped_price: "amber", dry_run: "neutral" };
+const TONE: Record<CallStatus, "brand" | "high" | "amber" | "neutral"> = { completed: "brand", failed: "high", pending: "amber", skipped_cap: "amber", skipped_budget: "amber", skipped_price: "amber", dry_run: "neutral" };
 
 export default async function RunsPage() {
   await requireAdminPage();

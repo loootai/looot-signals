@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { FixtureRunner } from "@/demo/fixtureRunner";
-import { planCalls, planTotal, runTriggers } from "@/lib/engine";
+import { Budget, budgetFile } from "@/lib/budget";
+import { payableMicros, planCalls, planTotal, runTriggers } from "@/lib/engine";
 import { sendWebhook, toCsv, toMarkdown } from "@/lib/export";
 import { LoootError, loootFromEnv } from "@/lib/looot";
 import { toMicros, usd, usdPrecise } from "@/lib/money";
@@ -19,10 +20,14 @@ const HELP = `Usage: npm run signals -- --triggers <file> [options]
   --out <dir>        Where new signals are written. Default: signals-out
   --state <file>     What was seen before. Default: data/state.json
   --cap <usd>        Most one run may spend. Default: 1.00
+  --partial          Run until the cap or the period budget even when the quote is above what is left
   --format <list>    json,csv,md (comma separated). Default: all three
   --webhook <url>    POST the new signals here. SIGNALS_WEBHOOK_URL works too. Secret: SIGNALS_WEBHOOK_SECRET
   --dry-run          Print the calls and the list-price cost. Makes no call and writes nothing.
   --demo             Use bundled sample answers. No token, no network.
+
+Period budget: SIGNALS_DAILY_USD (default 10) and SIGNALS_MONTHLY_USD (default 50) are the starting limits.
+The owner can change them in the web app (Costs). The budget file sits next to the state file (budget.json) or at SIGNALS_BUDGET.
 
 Needs LOOOT_TOKEN in the environment, except with --dry-run or --demo.`;
 
@@ -34,7 +39,7 @@ function fail(message: string, code = 1): never {
 async function main(): Promise<void> {
   let args;
   try {
-    args = parseArgs({ options: { triggers: { type: "string" }, out: { type: "string", default: "signals-out" }, state: { type: "string", default: "data/state.json" }, cap: { type: "string", default: "1" }, format: { type: "string", default: "json,csv,md" }, webhook: { type: "string" }, "dry-run": { type: "boolean", default: false }, demo: { type: "boolean", default: false }, help: { type: "boolean", default: false } } }).values;
+    args = parseArgs({ options: { triggers: { type: "string" }, out: { type: "string", default: "signals-out" }, state: { type: "string", default: "data/state.json" }, cap: { type: "string", default: "1" }, partial: { type: "boolean", default: false }, format: { type: "string", default: "json,csv,md" }, webhook: { type: "string" }, "dry-run": { type: "boolean", default: false }, demo: { type: "boolean", default: false }, help: { type: "boolean", default: false } } }).values;
   } catch (e) {
     fail(`${(e as Error).message}\n\n${HELP}`, 2);
   }
@@ -83,9 +88,19 @@ async function main(): Promise<void> {
   const plan = planCalls(triggers, prices, now);
   printPlan(plan, args.demo ? "demo, no charge" : unpriced.length > 0 ? `live prices; unread: ${unpriced.join(", ")}` : "live prices from the looot catalog");
 
+  // Check order: quote, per-run cap, period budget (reserved call by call), then the calls.
+  const budget = args.demo ? undefined : new Budget(budgetFile({ ...process.env, SIGNALS_STATE: args.state }));
+  if (budget) {
+    await budget.reconcile(looot);
+    const room = await budget.status(now);
+    const payable = await payableMicros(plan, budget, now);
+    console.log(`Budget left: ${usd(room.remainingMicros)} (${usd(room.day.remainingMicros)} today, ${usd(room.month.remainingMicros)} this month, ${usd(room.day.reservedMicros)} reserved).`);
+    if (payable > room.remainingMicros && !args.partial) fail(`Refused: the quote (${usd(payable)}) is above what is left of the period budget. Wait for the period to roll over, raise the budget on the Costs page of the web app, or pass --partial to run until it is reached.`, 2);
+  }
+
   const statePath = resolve(args.state);
   const before = readState(statePath);
-  const { state, run } = await runTriggers({ triggers, state: before, looot, prices, unpriced, capMicros, now });
+  const { state, run } = await runTriggers({ triggers, state: before, looot, prices, unpriced, capMicros, ledger: budget, now });
   // State first: it holds the pending run ids and the idempotency keys of the calls just made.
   writeState(statePath, state);
 
@@ -114,6 +129,8 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n${fresh.length} new signals. Spent ${usd(run.spentMicros)} of ${usd(capMicros)}.`);
+  const refused = run.calls.find((c) => c.status === "skipped_budget");
+  if (refused) console.log(`${run.calls.filter((c) => c.status === "skipped_budget").length} calls skipped by the period budget. ${refused.error ?? ""}`);
   for (const c of run.calls.filter((c) => c.status !== "completed")) console.log(`  ${c.triggerId}: ${c.status}${c.error ? `, ${c.error}` : ""}`);
   for (const w of written) console.log(`Wrote ${w}`);
   console.log(`State: ${statePath}`);

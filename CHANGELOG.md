@@ -2,6 +2,24 @@
 
 Built from the GitHub release notes. Each version links to its release page.
 
+## 0.1.5 (2026-10-11)
+
+#### Money safety: period budget, reserve then settle, stable keys
+
+Before this, a run was limited by the cap per run, an in-memory rate limit and the token balance. Nothing limited spend across runs, two requests started together could both pass the cap, a key with the date in it made a repeat on a new day pay again, and the body of a run request could lower the cap.
+
+What changed
+- Cap from the server only. The run cap is `SIGNALS_CAP_USD`. The amount confirmed on the quote still guards against a price rise, but it no longer sets the cap. A cap or budget field in a request body is ignored, and a test proves it.
+- Period budget: a daily and a monthly amount (UTC), $10 and $50 by default, saved in `budget.json`. The signed-in owner changes it on the new Costs page (`PUT /api/budget`, session and CSRF token). `SIGNALS_DAILY_USD` and `SIGNALS_MONTHLY_USD` set the starting values.
+- Check order: the quote, the cap per run, an atomic reservation against the period budget, then the call.
+- Reserve then settle: each paid call reserves its list price under a lock file, and is refused if used plus reserved plus the price would pass either budget. The reservation becomes the real cost when the call ends and goes back when looot answers with an error. A call still running keeps it, and the next run settles it with `GET /v1/runs/{id}`. A reservation that cannot be looked up is released after 24 hours.
+- Stable keys: endpoint, normalised input and the refresh period (`floor(time / 24 hours)` for searches, 30 days for founder and investor lookups). No date or clock time in the key, and no trigger id. A finished call is stored under its key, so a repeated request is answered with no call and no charge.
+- Call status `skipped_cap` is new. `skipped_budget` now means the period budget.
+- The sidebar spend panel and the Costs page show used, reserved and remaining for today and this month. The CLI prints what is left before a run and takes `--partial`.
+- 283 tests (was 244). The 39 new ones cover the budget file, concurrent reservations, pending, failure and late settlement, stable keys, and the run and budget routes.
+
+Migration: none. The budget is a new file, `budget.json`, created next to the state file on first use. Run one instance on a persistent disk, since the file is not shared between hosts. Keys changed shape, so the first run after upgrading pays once for each search that ran earlier the same day.
+
 ## 0.1.4 (2026-10-11)
 
 #### Founders and investors on funding triggers

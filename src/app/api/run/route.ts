@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Paid (not in demo mode). Body: { confirmedMaxMicros }. Refused when the live price is above that amount.
- * The spend cap comes from SIGNALS_CAP_USD on the server. The body can only lower it. 10 runs in 10 minutes per session.
+ * The spend cap comes from SIGNALS_CAP_USD on the server and the period budget from budget.json. The body sets neither:
+ * confirmedMaxMicros only checks the price, and any cap or budget field in the body is ignored. 10 runs in 10 minutes per session.
  */
 export async function POST(req: Request) {
   const denied = await requireAdminRoute(req);

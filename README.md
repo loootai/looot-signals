@@ -92,17 +92,26 @@ npm run signals -- --cap 1 --out signals-out
 npm run dev                         # web UI on http://localhost:3000
 ```
 
-CLI options are `--triggers`, `--out`, `--state`, `--cap` (dollars, default 1), `--format json,csv,md`, `--webhook`, `--dry-run` and `--demo`. Each run writes `signals-<timestamp>.json`, `.csv` and `.md` to the `--out` folder (default `signals-out/`) with the new signals only, and updates `data/state.json`. A real run needs a token even though the dry run does not. With no token it prints the quote and then `LOOOT_TOKEN is not set...` (see Troubleshooting).
+CLI options are `--triggers`, `--out`, `--state`, `--cap` (dollars, default 1), `--partial`, `--format json,csv,md`, `--webhook`, `--dry-run` and `--demo`. Each run writes `signals-<timestamp>.json`, `.csv` and `.md` to the `--out` folder (default `signals-out/`) with the new signals only, and updates `data/state.json`. A real run needs a token even though the dry run does not. With no token it prints the quote and then `LOOOT_TOKEN is not set...` (see Troubleshooting).
 
 ## Spending
 
-- The quote shows before any paid action. In the CLI it is `--dry-run`. In the UI it is a price dialog that sends back the amount you confirmed. If the live price is higher than that amount, nothing is called.
-- The cap is `--cap` in the CLI and `SIGNALS_CAP_USD` in the web app. Default $1 per run. A call that would cross it is skipped and listed as `skipped_budget`.
+Four limits stand between a request and a charge, checked in this order: the quote, the cap per run, the period budget, then the call.
+
+- The quote shows before any paid action. In the CLI it is `--dry-run`. In the UI it is a price dialog that sends back the amount you confirmed. If the live price is higher than that amount, nothing is called. The confirmed amount only checks the price. It does not set a cap.
+- The cap per run is `--cap` in the CLI and `SIGNALS_CAP_USD` in the web app, default $1. In the web app the cap comes from the server only. A `cap`, `capUsd` or budget field in a request body is ignored, and a test proves it. A call that would cross the cap is skipped and listed as `skipped_cap`.
+- The period budget caps all runs together: a daily and a monthly amount (UTC), $10 and $50 until you change them. The signed-in owner changes them on the Costs page (`PUT /api/budget`, session and CSRF token). `SIGNALS_DAILY_USD` and `SIGNALS_MONTHLY_USD` set the starting values. A web run whose quote is above what is left is refused (409). The CLI prints what is left and exits with code 2 unless you pass `--partial`, which runs until the budget is reached.
+- Before each paid call the app reserves its list price in `budget.json` (next to the state file, or `SIGNALS_BUDGET`), under a lock file, and refuses the call if used plus reserved plus the price would pass the daily or the monthly budget. Two requests started together cannot both pass. When the call ends the reservation becomes the real cost. A call that looot answered with an error releases it. A call still running at looot (`pending`) keeps its reservation. It is never recorded as failed at $0 and the budget is not handed back early. A refused call is listed as `skipped_budget` with the limit it hit.
+- The next run reads every pending call back with `GET /v1/runs/{id}` and settles the ones that ended, to their real cost. If looot cannot be reached, or the app died before it got a run id, the reservation stays for 24 hours and is then released. A network error mid-call is treated the same way, because the call may have been accepted.
+- The sidebar and the Costs page show used, reserved and remaining for today and this month. At the budget the run says which limit it hit.
 - Typical run at list price. The five triggers in the example file cost at most $0.731 (the dry run above). That is $0.531 for the searches plus $0.20 for founder and investor lookups (2 companies x 2 lookups x $0.05). With the sample answers the same run reads as $0.38, because most searches return fewer rows than their limit and the lookups are the only part billed in full. No real run was priced.
 - Founder and investor lookups are per company and run after every search, so they never use up the cap before a search has run. Each lookup is checked against the cap on its own, has its own idempotency key, and is skipped (and listed as `skipped_budget`) when it would cross the cap. A company that already has the lookup is never paid for again.
 - Failed calls are not charged by looot.
-- Every call has a stable `idempotencyKey` made from the trigger, the endpoint, a hash of the input and the day. Running the same trigger twice in a day replays the stored run and does not charge twice.
-- A call still running when waiting stops is `pending`, never failed. Its run id is stored and read again, free, on the next run.
+- Every call has a stable `idempotencyKey`: the endpoint, a hash of the normalised input (trimmed, lowercased, keys sorted) and the refresh period. The key has no date or clock time in it and does not name the trigger. The refresh period is the whole number `floor(time / 24 hours)` for searches and `floor(time / 30 days)` for founder and investor lookups. Inside a period a repeated request gets the same key, is answered from the stored result in `budget.json` with no call and no reservation, and is never charged twice. A new period is a deliberate fresh request with its own key, because new jobs, rounds and headlines appear daily. If a stored result is missing, looot replays the same key without charging again.
+- A call still running when waiting stops is `pending`, never failed. Its run id is stored and read again, free, on the next run, and settled to its real cost.
+- The looot token balance is the final limit. Fund a dedicated token with only what you are willing to spend, and keep the budget below it.
+
+The budget lives in a file, so run one instance on a disk that persists. Several instances, or a serverless host with a throwaway disk, do not share it.
 - Calls are pinned to one endpoint with no provider fallback, so the price is the one quoted.
 
 ## Triggers
@@ -189,8 +198,8 @@ Pages and routes were listed from `src/app` and classified. A test reads the fol
 | --- | --- | --- |
 | Public by design | 4 routes | `/api/health`, `/login`, `/api/auth/login`, `/api/auth/logout` |
 | Public static files | 2 | `/brand/*`, `/favicon.ico` |
-| Admin pages | 3 | `/` (feed), `/triggers`, `/runs` |
-| Admin API | 5 | `/api/run` (paid looot run), `/api/webhook` (sends data out), `/api/triggers` (rewrites the trigger file), `/api/export` (CSV of stored signals), `/api/quote` |
+| Admin pages | 4 | `/` (feed), `/triggers`, `/runs`, `/costs` |
+| Admin API | 6 | `/api/run` (paid looot run), `/api/budget` (read, and change the period budget), `/api/webhook` (sends data out), `/api/triggers` (rewrites the trigger file), `/api/export` (CSV of stored signals), `/api/quote` |
 
 There is no inbound webhook and no server action. The webhook feature only sends, to the URL in `SIGNALS_WEBHOOK_URL`. Any path not listed is treated as admin.
 
@@ -201,7 +210,7 @@ There is no inbound webhook and no server action. The webhook feature only sends
 - Set up: a valid session is required. Page requests without one redirect to `/login`. API requests get 401.
 - Sign-in: constant-time password comparison. A session is a signed token in an httpOnly, SameSite=Lax cookie, Secure in production, valid for 8 hours. 5 wrong passwords from one address lock that address for 15 minutes. 40 wrong passwords from anywhere lock sign-in for everyone for 15 minutes (a brute-force guard that also lets an attacker delay you, so use a long password and an IP allow-list too).
 - State-changing admin requests need a same-origin `Origin` header and the per-session token in `x-signals-csrf`. The layout puts the token in a meta tag and the app's own fetch calls send it.
-- Money. The run cap is `SIGNALS_CAP_USD` on the server. The request body can only lower it, never raise it. A run still needs the amount confirmed on the quote. `/api/run` and `/api/webhook` allow 10 calls in 10 minutes per session.
+- Money. The run cap is `SIGNALS_CAP_USD` on the server and the request body cannot change it, up or down. The period budget is changed only by the signed-in owner (`PUT /api/budget`, with the CSRF token), never by a run. A run still needs the amount confirmed on the quote. `/api/run` and `/api/webhook` allow 10 calls in 10 minutes per session. The looot token balance is the final limit, so give the app a token funded with only what you are willing to spend. See [Spending](#spending).
 - Admin responses carry `Cache-Control: no-store`, including the CSV export. All responses carry a Content-Security-Policy (`frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows inline scripts because Next.js needs them.
 - The password and token never reach the client bundle. The server reads them at runtime.
 
@@ -213,7 +222,7 @@ export SIGNALS_ADMIN_PASSWORD='a password of 12 or more characters'
 npm run hash-password -- 'a password of 12 or more characters'   # prints SIGNALS_ADMIN_PASSWORD_HASH=...
 ```
 
-Rotate the password by changing the variable and restarting. Changing it signs every session out. Where data is stored: `data/state.json` (or `SIGNALS_STATE`) holds signals, runs and the call log, and `triggers.yaml` holds your triggers. Both are plain files on the server's disk.
+Rotate the password by changing the variable and restarting. Changing it signs every session out. Where data is stored: `data/state.json` (or `SIGNALS_STATE`) holds signals, runs and the call log, `data/budget.json` (or `SIGNALS_BUDGET`) holds the period budget, reservations and stored results, and `triggers.yaml` holds your triggers. All are plain files on the server's disk. Run one instance on a persistent disk: the budget file is not shared between hosts.
 
 Rate limits and lockout counters live in memory in one process. Behind several instances, rate limit at your proxy too. The address comes from `x-forwarded-for`, so run the app behind a proxy that sets it and strips what clients send. Serve the app over HTTPS, because the session cookie is Secure in production.
 
@@ -237,7 +246,9 @@ No per-user accounts, no roles, no audit of who signed in. The app has one admin
 | `402: ...` or `looot returned HTTP 402` | The balance is too low. The code shows the API's code and message and does not check this itself. Top up (minimum $5) and run again. |
 | A trigger line ending in `blocked` or `stopped` | looot did not run the call. The run shows the status and the API's error if there is one. Open the run in your looot app for the reason. |
 | `<id>: pending` | The call is still running at the provider. Run the same command again later. It is read again for free. |
-| `skipped_budget` with `The run cap would be exceeded.` | The cap was reached. Raise `--cap` if you accept the cost. |
+| `skipped_cap` with `The run cap would be exceeded.` | The cap per run was reached. Raise `--cap` (CLI) or `SIGNALS_CAP_USD` (web app) if you accept the cost. |
+| `skipped_budget` with `The daily budget is reached ...` or `The monthly budget is reached ...` | The period budget is used up or held by pending calls. Wait for the period to roll over, or raise the budget on the Costs page. |
+| `Refused: the quote ... is above what is left of the period budget.` | The CLI refused before calling anything. Exit code 2. Raise the budget, wait, or pass `--partial`. |
 | `skipped_price` with `The live price could not be read, so the call was not made.` | The catalog price for that endpoint could not be read. Run again later. |
 | `The price is now ... micro-dollars a run, above the ... you confirmed. Nothing was called.` | The web app price rose after you saw the quote. Open the quote again. |
 | `Every call failed. See the messages above.` | Exit code 1. Read the per-trigger lines above it. |
@@ -251,7 +262,7 @@ How to file an issue. Open one at https://github.com/loootai/looot-signals/issue
 - No paid looot run was made. Response parsing is built from each provider's public docs and from fixtures in `src/demo/fixtures.ts`. Parsers read several field names per value and return nothing for an answer they do not understand, but no real response body was checked. Expect to adjust them on the first real run.
 - The `postedLimit` wording for the LinkedIn job index and the `date` field names of the job-change feed come from parameter descriptions, not from a live call.
 - News headlines have no structured company. The company is a guess from the headline and is empty when the pattern does not fit.
-- Demo and tests run against fixtures. 244 tests cover parsers, dedupe, the engine (cap, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the founder and investor lookups (quote, cap, idempotency keys, pending, failures), the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap and rate limit), with HTTP mocked.
+- Demo and tests run against fixtures. 283 tests cover parsers, dedupe, the engine (cap, period budget, reservations, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the founder and investor lookups (quote, cap, idempotency keys, pending, failures), the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap, budget route and rate limit), with HTTP mocked.
 
 If a parser fails on a real response, open an issue with the raw response body (see Troubleshooting).
 

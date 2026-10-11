@@ -71,7 +71,7 @@ export interface Signal extends RawSignal {
   runId: string;
 }
 
-export type CallStatus = "completed" | "failed" | "pending" | "skipped_budget" | "skipped_price" | "dry_run";
+export type CallStatus = "completed" | "failed" | "pending" | "skipped_cap" | "skipped_budget" | "skipped_price" | "dry_run";
 
 export interface CallRecord {
   triggerId: string;

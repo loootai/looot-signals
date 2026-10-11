@@ -2,13 +2,14 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
-import { AppShell, type ShellSpend } from "@/components/AppShell";
+import { AppShell, type ShellSpend, type ShellSpendRow } from "@/components/AppShell";
 import { ToastProvider } from "@/components/ui/toast";
 import { currentCsrf, requireAdminPage } from "@/lib/auth/guard";
 import { isPublicPath } from "@/lib/auth/routes";
 import { IS_DEMO } from "@/lib/clock";
+import type { PeriodStatus } from "@/lib/budget";
 import { usd } from "@/lib/money";
-import { getState } from "@/lib/service";
+import { budgetStatus } from "@/lib/service";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,8 +49,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
   const gate = await requireAdminPage();
   const csrf = await currentCsrf();
-  const lastRun = (await getState()).runs.at(-1);
-  const spend: ShellSpend | null = lastRun ? { title: "Last run", spent: usd(lastRun.spentMicros), cap: usd(lastRun.capMicros), ratio: lastRun.capMicros > 0 ? lastRun.spentMicros / lastRun.capMicros : 0, note: IS_DEMO ? "Sample data, nothing charged." : undefined } : null;
+  const b = await budgetStatus();
+  const row = (label: string, p: PeriodStatus): ShellSpendRow => ({ label, used: usd(p.usedMicros), reserved: usd(p.reservedMicros), remaining: usd(p.remainingMicros), cap: usd(p.limitMicros), ratio: p.limitMicros > 0 ? (p.usedMicros + p.reservedMicros) / p.limitMicros : 0 });
+  const spend: ShellSpend = { title: "Spend budget", rows: [row("Today", b.day), row("Month", b.month)], note: IS_DEMO ? "Sample data, nothing charged." : b.remainingMicros <= 0 ? "Budget reached. Paid runs are refused." : undefined };
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>

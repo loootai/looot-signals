@@ -1,6 +1,6 @@
 {
   "name": "looot-signals",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Open-source signal feed for hiring, funding, news and leadership triggers. Next.js and looot.",
   "license": "MIT",
   "private": true,
