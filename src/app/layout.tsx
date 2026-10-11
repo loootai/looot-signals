@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { AppShell, type ShellSpend } from "@/components/AppShell";
 import { ToastProvider } from "@/components/ui/toast";
+import { currentCsrf, requireAdminPage } from "@/lib/auth/guard";
+import { isPublicPath } from "@/lib/auth/routes";
 import { IS_DEMO } from "@/lib/clock";
 import { usd } from "@/lib/money";
 import { getState } from "@/lib/service";
@@ -29,16 +32,33 @@ const themeScript = `(function(){try{var q=new URLSearchParams(location.search).
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const path = (await headers()).get("x-signals-path") ?? "";
+  // Public routes (sign-in) render with no stored data and no admin navigation.
+  if (path !== "" && isPublicPath(path)) {
+    return (
+      <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        </head>
+        <body className="min-h-dvh bg-page text-ink">
+          <main className="mx-auto min-h-dvh max-w-xl px-4 py-10">{children}</main>
+        </body>
+      </html>
+    );
+  }
+  const gate = await requireAdminPage();
+  const csrf = await currentCsrf();
   const lastRun = (await getState()).runs.at(-1);
   const spend: ShellSpend | null = lastRun ? { title: "Last run", spent: usd(lastRun.spentMicros), cap: usd(lastRun.capMicros), ratio: lastRun.capMicros > 0 ? lastRun.spentMicros / lastRun.capMicros : 0, note: IS_DEMO ? "Sample data, nothing charged." : undefined } : null;
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <meta name="signals-csrf" content={csrf} />
       </head>
       <body className="min-h-dvh bg-page text-ink">
         <ToastProvider>
-          <AppShell demo={IS_DEMO} spend={spend}>
+          <AppShell demoLabel={gate.policy.mode === "open-demo" ? "Demo, no sign-in" : IS_DEMO ? "Demo data" : undefined} signOut={gate.policy.mode === "login"} spend={spend}>
             {children}
           </AppShell>
         </ToastProvider>

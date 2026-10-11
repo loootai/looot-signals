@@ -3,7 +3,9 @@ import { ActionBar } from "@/components/ActionBar";
 import { Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { requireAdminPage } from "@/lib/auth/guard";
 import { IS_DEMO, now } from "@/lib/clock";
+import { validateWebhookUrl } from "@/lib/netGuard";
 import { filterSignals, groupByDay, multiSignalCompanies } from "@/lib/feed";
 import { hostLabel, isSafeLink } from "@/lib/format";
 import { usd } from "@/lib/money";
@@ -49,6 +51,7 @@ function Row({ s, fresh, triggerNames }: { s: Signal; fresh: boolean; triggerNam
 }
 
 export default async function FeedPage({ searchParams }: { searchParams: Params }) {
+  await requireAdminPage();
   const p = await searchParams;
   const [state, triggers] = [await getState(), getTriggers()];
   const t = now();
@@ -71,7 +74,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Params 
             {lastRun ? `Last run ${lastRun.startedAt.slice(0, 10)}, ${lastRun.newSignals} new, ${usd(lastRun.spentMicros)} spent.` : "No run yet."}
           </p>
         </div>
-        <ActionBar demo={IS_DEMO} exportHref={`/api/export${exportQuery ? `?${exportQuery}` : ""}`} webhookReady={Boolean(process.env.SIGNALS_WEBHOOK_URL) || IS_DEMO} />
+        <ActionBar demo={IS_DEMO} exportHref={`/api/export${exportQuery ? `?${exportQuery}` : ""}`} webhookReady={IS_DEMO || validateWebhookUrl(process.env.SIGNALS_WEBHOOK_URL ?? "").ok} />
       </header>
 
       {multi.length > 0 ? (

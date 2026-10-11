@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireAdminPage } from "@/lib/auth/guard";
 import { Badge, Table, Td, Th } from "@/components/ui/misc";
 import { usd } from "@/lib/money";
 import { getState } from "@/lib/service";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 const TONE: Record<CallStatus, "brand" | "high" | "amber" | "neutral"> = { completed: "brand", failed: "high", pending: "amber", skipped_budget: "amber", skipped_price: "amber", dry_run: "neutral" };
 
 export default async function RunsPage() {
+  await requireAdminPage();
   const state = await getState();
   const runs = [...state.runs].reverse();
   const month = new Date().toISOString().slice(0, 7);

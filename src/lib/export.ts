@@ -1,4 +1,7 @@
 import { createHmac } from "node:crypto";
+import { request as httpsRequest } from "node:https";
+import { isIP } from "node:net";
+import { validateWebhookUrl, resolveSafe, type Lookup } from "./netGuard";
 import { usd } from "./money";
 import type { RunRecord, Signal } from "./types";
 
@@ -38,22 +41,54 @@ export function webhookBody(signals: Signal[], now: Date): string {
   return JSON.stringify({ source: "looot-signals", generatedAt: now.toISOString(), count: signals.length, signals });
 }
 
-/** true for an https URL, or http on localhost. Anything else is refused. */
+/** true for an https URL on a public host. See validateWebhookUrl for the full list of refusals. */
 export function isAllowedWebhook(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1"].includes(u.hostname));
-  } catch {
-    return false;
-  }
+  return validateWebhookUrl(url).ok;
 }
 
-/** POSTs signals to a webhook. With a secret, adds X-Signals-Signature: sha256=<hmac of the body>. Returns the HTTP status. */
-export async function sendWebhook(url: string, signals: Signal[], opts: { secret?: string; fetch?: typeof fetch; now?: Date } = {}): Promise<number> {
-  if (!isAllowedWebhook(url)) throw new Error("The webhook must be an https URL (http only for localhost).");
+/** What the transport needs to make one pinned request. */
+export interface WebhookTarget {
+  url: string;
+  hostname: string;
+  address: string;
+  family: number;
+  port: number;
+  path: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/**
+ * The default transport. Connects to the address that was already checked, sends the real host name for
+ * TLS and the Host header, and never follows a redirect. Resolves with the HTTP status.
+ */
+export function postPinned(t: WebhookTarget): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      { host: t.address, family: t.family, port: t.port, method: "POST", path: t.path, servername: isIP(t.hostname) ? undefined : t.hostname, headers: { ...t.headers, Host: new URL(t.url).host, "Content-Length": String(Buffer.byteLength(t.body)) }, timeout: 10_000 },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("The webhook timed out.")));
+    req.on("error", reject);
+    req.end(t.body);
+  });
+}
+
+/**
+ * POSTs signals to a webhook. Checks the URL, resolves the host and refuses a private answer, then
+ * connects to the address it checked. A redirect is returned as its status and never followed.
+ * With a secret, adds X-Signals-Signature: sha256=<hmac of the body>. Returns the HTTP status.
+ */
+export async function sendWebhook(url: string, signals: Signal[], opts: { secret?: string; now?: Date; lookup?: Lookup; post?: (t: WebhookTarget) => Promise<number> } = {}): Promise<number> {
+  const check = validateWebhookUrl(url);
+  if (!check.ok) throw new Error(check.error);
   const body = webhookBody(signals, opts.now ?? new Date());
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (opts.secret) headers["X-Signals-Signature"] = `sha256=${createHmac("sha256", opts.secret).update(body).digest("hex")}`;
-  const res = await (opts.fetch ?? fetch)(url, { method: "POST", headers, body });
-  return res.status;
+  const { address, family } = await resolveSafe(check.hostname, opts.lookup);
+  const u = check.url;
+  return (opts.post ?? postPinned)({ url: u.href, hostname: check.hostname, address, family, port: Number(u.port) || 443, path: `${u.pathname}${u.search}`, headers, body });
 }

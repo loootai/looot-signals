@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Play, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { adminFetch } from "@/components/adminFetch";
 import { useToast } from "@/components/ui/toast";
 import { usdPrecise, usd } from "@/lib/money";
 
@@ -32,7 +33,7 @@ export function ActionBar({ demo, exportHref, webhookReady }: { demo: boolean; e
   const open = async () => {
     setQuote(null);
     dialog.current?.showModal();
-    const res = await fetch("/api/quote");
+    const res = await adminFetch("/api/quote");
     if (res.ok) setQuote((await res.json()) as QuoteBody);
     else {
       dialog.current?.close();
@@ -43,7 +44,7 @@ export function ActionBar({ demo, exportHref, webhookReady }: { demo: boolean; e
   const confirm = async () => {
     if (!quote) return;
     setBusy(true);
-    const res = await fetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmedMaxMicros: quote.totalMicros }) });
+    const res = await adminFetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmedMaxMicros: quote.totalMicros }) });
     const body = (await res.json()) as { run?: { newSignals: number; spentMicros: number }; error?: string };
     setBusy(false);
     dialog.current?.close();
@@ -54,7 +55,7 @@ export function ActionBar({ demo, exportHref, webhookReady }: { demo: boolean; e
   };
 
   const sendWebhook = async () => {
-    const res = await fetch("/api/webhook", { method: "POST" });
+    const res = await adminFetch("/api/webhook", { method: "POST" });
     const body = (await res.json()) as { sent?: number; status?: number; error?: string };
     toast(res.ok ? { text: body.sent ? `Sent ${body.sent} signals. The webhook answered ${body.status}.` : (body.error ?? "Nothing new to send.") } : { text: body.error ?? "The webhook failed.", tone: "error" });
   };

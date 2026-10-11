@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { adminFetch } from "@/components/adminFetch";
 import { useToast } from "@/components/ui/toast";
 
 /** The trigger file as text. Save checks it on the server and shows the first problem. */
@@ -16,7 +17,7 @@ export function TriggersEditor({ initial }: { initial: string }) {
 
   const save = async () => {
     setBusy(true);
-    const res = await fetch("/api/triggers", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const res = await adminFetch("/api/triggers", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     const body = (await res.json()) as { saved?: number; error?: string };
     setBusy(false);
     if (res.ok) {

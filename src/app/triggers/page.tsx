@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireAdminPage } from "@/lib/auth/guard";
 import { TriggersEditor } from "@/components/TriggersEditor";
 import { Badge, Table, Td, Th } from "@/components/ui/misc";
 import { usd, usdPrecise } from "@/lib/money";
@@ -9,6 +10,7 @@ export const metadata: Metadata = { title: "Triggers" };
 export const dynamic = "force-dynamic";
 
 export default async function TriggersPage() {
+  await requireAdminPage();
   const triggers = getTriggers();
   const quote = await quoteNow();
   const perTrigger = new Map<string, { calls: number; micros: number }>();

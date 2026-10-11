@@ -8,6 +8,8 @@ An open-source alternative to TheirStack and Harmonic style signal feeds. You de
 
 TheirStack lists API plans from $49 a month (1,500 API credits) and one-time app credit packs from $109 (1,000 company credits), read on 2026-10-10. Harmonic shows no public price. looot-signals has no subscription. It calls looot endpoints at list price, so a run costs what its calls cost, shown before it starts.
 
+> **Security notice.** Versions 0.1.2 and older had no admin sign-in. Anyone who could reach a deployed copy could read the stored signals, rewrite the trigger file, send the webhook and start paid looot runs on your token. If you run an older version on a reachable host, upgrade to v0.1.3 and set `SIGNALS_ADMIN_PASSWORD`. See [Securing a deployment](#securing-a-deployment).
+
 ![Signal feed, light](docs/screenshots/feed-light.png)
 ![Signal feed, dark](docs/screenshots/feed-dark.png)
 
@@ -31,7 +33,7 @@ npm run demo                              # web UI on http://localhost:3220
 npm run signals -- --demo --out signals-out
 ```
 
-The demo uses made-up companies on the reserved `.example` domain. Evidence links in demo mode go nowhere on purpose. The CLI demo prints "19 new signals. Spent $0.18 of $1.00." and writes `.json`, `.csv` and `.md` files to `signals-out/`.
+The demo has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start if `LOOOT_TOKEN` is set or `data/state.json` exists, unless you also set an admin password. The demo uses made-up companies on the reserved `.example` domain. Evidence links in demo mode go nowhere on purpose. The CLI demo prints "19 new signals. Spent $0.18 of $1.00." and writes `.json`, `.csv` and `.md` files to `signals-out/`.
 
 The CLI demo also writes `data/state.json`. Delete `data/` before your first real run so demo signals do not count as already seen.
 
@@ -52,7 +54,11 @@ The web app reads `.env.local`. The CLI reads only the shell environment.
 | `SIGNALS_CAP_USD` | Optional | Most one run from the web app may spend. Default 1. The CLI uses `--cap` instead | A dollar amount you choose |
 | `SIGNALS_TRIGGERS` | Optional | Trigger file the web app reads. Default `triggers.yaml`, else `triggers.example.yaml` | A path you choose |
 | `SIGNALS_STATE` | Optional | State file the web app uses. Default `data/state.json` | A path you choose |
-| `SIGNALS_WEBHOOK_URL` | Optional | Receives the new signals of a run as JSON. https only, or http on localhost | Your own endpoint |
+| `SIGNALS_ADMIN_PASSWORD` | Required outside the demo | Admin password, 12 characters or more. Without it the admin pages and admin API are closed and `/login` shows a setup page | Choose one |
+| `SIGNALS_ADMIN_PASSWORD_HASH` | Alternative | `scrypt$salt$key` instead of the plain password. Wins if both are set | `npm run hash-password -- 'your password'` |
+| `SIGNALS_SESSION_SECRET` | Optional | Key that signs session cookies. Default: derived from the password, so changing the password signs everyone out | `openssl rand -hex 32` |
+| `SIGNALS_COOKIE_SECURE` | Optional | Set `0` to drop the Secure flag in production, only for plain-http testing | Leave unset |
+| `SIGNALS_WEBHOOK_URL` | Optional | Receives the new signals of a run as JSON. https only, on a public host | Your own endpoint |
 | `SIGNALS_WEBHOOK_SECRET` | Optional | Signs each webhook with `X-Signals-Signature: sha256=<hmac of the body>` | A secret you choose |
 | `NEXT_PUBLIC_DEMO` | Optional | `1` turns on demo mode. `npm run demo` sets it | Do not set it for real use |
 
@@ -145,19 +151,69 @@ A signal id is a hash of the signal type, the company (domain, else name) and th
 
 ## Export and webhook
 
-The feed page exports the current filter as CSV (cells that start like a spreadsheet formula get a leading quote). `SIGNALS_WEBHOOK_URL` sets a webhook that receives the new signals of a run as JSON. Only https is accepted, plus http on localhost. With `SIGNALS_WEBHOOK_SECRET` each request carries `X-Signals-Signature: sha256=<hmac of the body>`. The URL is server config and is never taken from a request.
+The feed page exports the current filter as CSV (cells that start like a spreadsheet formula get a leading quote). `SIGNALS_WEBHOOK_URL` sets a webhook that receives the new signals of a run as JSON. Only https to a public host is accepted. The URL is refused if it has credentials, a non-https scheme, a name such as `localhost` or `*.internal`, or an address in a private, loopback, link-local (including the cloud metadata address 169.254.169.254), unspecified or unique-local range, in any IPv4 or IPv6 spelling, including IPv4-mapped IPv6. The host name is resolved again at send time, every answer is checked, the request goes to the address that was checked, and a redirect is not followed. A webhook receiver on your own network or on localhost is no longer accepted. With `SIGNALS_WEBHOOK_SECRET` each request carries `X-Signals-Signature: sha256=<hmac of the body>`. The URL is server config and is never taken from a request.
 
 ## Deploy
 
-There is no `vercel.json` and no GitHub workflow in this repo. The web app keeps its state in a JSON file on disk (`data/state.json`, or `SIGNALS_STATE`) and saves trigger edits to a file, so it needs a host with a writable, persistent disk. I have not deployed it. On such a host run `npm ci --ignore-scripts && npm run build && npm start` and set `LOOOT_TOKEN` (and the optional variables) in the host environment. There is no sign-in, so put it behind your own access control.
+There is no `vercel.json` and no GitHub workflow in this repo. The web app keeps its state in a JSON file on disk (`data/state.json`, or `SIGNALS_STATE`) and saves trigger edits to a file, so it needs a host with a writable, persistent disk. I have not deployed it. On such a host run `npm ci --ignore-scripts && npm run build && npm start` and set `LOOOT_TOKEN` (and the optional variables) in the host environment. Set `SIGNALS_ADMIN_PASSWORD` first, see [Securing a deployment](#securing-a-deployment).
 
 To run the CLI on a schedule, run `npm run signals -- --triggers triggers.yaml --cap 1 --out signals-out` from cron or any scheduler on a machine that keeps `data/state.json` between runs, with `LOOOT_TOKEN` exported. A fresh checkout on every run (as in a stateless CI job) would report every signal as new.
+
+## Securing a deployment
+
+Versions 0.1.2 and older had no admin authentication. From 0.1.3 every route is either public on purpose or admin, and the admin routes are closed unless you set a password.
+
+### Route map
+
+Pages and routes were listed from `src/app` and classified. A test reads the folder and fails if a route is missing from `src/lib/auth/routes.ts` or if an admin route does not call the gate.
+
+| Class | Count | Routes |
+| --- | --- | --- |
+| Public by design | 4 routes | `/api/health`, `/login`, `/api/auth/login`, `/api/auth/logout` |
+| Public static files | 2 | `/brand/*`, `/favicon.ico` |
+| Admin pages | 3 | `/` (feed), `/triggers`, `/runs` |
+| Admin API | 5 | `/api/run` (paid looot run), `/api/webhook` (sends data out), `/api/triggers` (rewrites the trigger file), `/api/export` (CSV of stored signals), `/api/quote` |
+
+There is no inbound webhook and no server action. The webhook feature only sends, to the URL in `SIGNALS_WEBHOOK_URL`. Any path not listed is treated as admin.
+
+### How the gate works
+
+- `src/proxy.ts` checks every request. Each admin page, the root layout and each admin route handler checks again with the same function, so a path the matcher misses is still closed.
+- Not set up (no password, and not a clean demo): admin routes answer 503, admin pages redirect to `/login`, which says what to set. Nothing stored is rendered.
+- Set up: a valid session is required. Page requests without one redirect to `/login`. API requests get 401.
+- Sign-in: constant-time password comparison. A session is a signed token in an httpOnly, SameSite=Lax cookie, Secure in production, valid for 8 hours. 5 wrong passwords from one address lock that address for 15 minutes. 40 wrong passwords from anywhere lock sign-in for everyone for 15 minutes (a brute-force guard that also lets an attacker delay you, so use a long password and an IP allow-list too).
+- State-changing admin requests need a same-origin `Origin` header and the per-session token in `x-signals-csrf`. The layout puts the token in a meta tag and the app's own fetch calls send it.
+- Money. The run cap is `SIGNALS_CAP_USD` on the server. The request body can only lower it, never raise it. A run still needs the amount confirmed on the quote. `/api/run` and `/api/webhook` allow 10 calls in 10 minutes per session.
+- Admin responses carry `Cache-Control: no-store`, including the CSV export. All responses carry a Content-Security-Policy (`frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows inline scripts because Next.js needs them.
+- The password and token never reach the client bundle. The server reads them at runtime.
+
+### Setup
+
+```bash
+export SIGNALS_ADMIN_PASSWORD='a password of 12 or more characters'
+# or keep it out of the environment as plain text:
+npm run hash-password -- 'a password of 12 or more characters'   # prints SIGNALS_ADMIN_PASSWORD_HASH=...
+```
+
+Rotate the password by changing the variable and restarting. Changing it signs every session out. Where data is stored: `data/state.json` (or `SIGNALS_STATE`) holds signals, runs and the call log, and `triggers.yaml` holds your triggers. Both are plain files on the server's disk.
+
+Rate limits and lockout counters live in memory in one process. Behind several instances, rate limit at your proxy too. The address comes from `x-forwarded-for`, so run the app behind a proxy that sets it and strips what clients send. Serve the app over HTTPS, because the session cookie is Secure in production.
+
+### The stronger option
+
+A shared password is the floor. For anything people other than you can reach, put the whole app behind a VPN, a private network or an identity-aware proxy (Cloudflare Access, Tailscale, Google IAP, oauth2-proxy). Keep the app's password on as well.
+
+### Not covered
+
+No per-user accounts, no roles, no audit of who signed in. The app has one admin.
 
 ## Troubleshooting
 
 | What you see | What it means and what to do |
 |---|---|
 | `LOOOT_TOKEN is not set. Create an agent token at https://looot.ai/settings, or use --dry-run or --demo.` | The CLI found no token. Exit code 2. Export `LOOOT_TOKEN`, or use `--dry-run` or `--demo`. |
+| `Admin sign-in is not set up.` (HTTP 503) or every page redirecting to `/login` | `SIGNALS_ADMIN_PASSWORD` is missing or shorter than 12 characters. Set it and restart. |
+| `The webhook must not point at a private, loopback or link-local address.` or `...resolves to a private or internal address.` | `SIGNALS_WEBHOOK_URL` points inside your network or at localhost. Use a public https endpoint. |
 | `LOOOT_TOKEN is not set on the server.` | The web app run button with no token (HTTP 503). Set it in `.env.local` and restart. |
 | `401: ...` or `looot returned HTTP 401` on a trigger in the run output | The token is wrong, expired or lacks a scope. Create a new one with runs.execute, catalog.read, runs.read and usage.read. |
 | `402: ...` or `looot returned HTTP 402` | The balance is too low. The code shows the API's code and message and does not check this itself. Top up (minimum $5) and run again. |
@@ -177,7 +233,7 @@ How to file an issue. Open one at https://github.com/loootai/looot-signals/issue
 - No paid looot run was made. Response parsing is built from each provider's public docs and from fixtures in `src/demo/fixtures.ts`. Parsers read several field names per value and return nothing for an answer they do not understand, but no real response body was checked. Expect to adjust them on the first real run.
 - The `postedLimit` wording for the LinkedIn job index and the `date` field names of the job-change feed come from parameter descriptions, not from a live call.
 - News headlines have no structured company. The company is a guess from the headline and is empty when the pattern does not fit.
-- Demo and tests run against fixtures. 52 unit tests cover parsers, dedupe, the engine (cap, idempotency keys, pending, failures), CSV, the webhook, the looot client and the CLI, with HTTP mocked.
+- Demo and tests run against fixtures. 215 tests cover parsers, dedupe, the engine (cap, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap and rate limit), with HTTP mocked.
 
 If a parser fails on a real response, open an issue with the raw response body (see Troubleshooting).
 

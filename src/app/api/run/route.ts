@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
+import { rateLimitSpend, requireAdminRoute } from "@/lib/auth/guard";
 import { runNow } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
 
-/** Paid (not in demo mode). Body: { confirmedMaxMicros }. Refused when the live price is above that amount. */
+/**
+ * Paid (not in demo mode). Body: { confirmedMaxMicros }. Refused when the live price is above that amount.
+ * The spend cap comes from SIGNALS_CAP_USD on the server. The body can only lower it. 10 runs in 10 minutes per session.
+ */
 export async function POST(req: Request) {
+  const denied = await requireAdminRoute(req);
+  if (denied) return denied;
+  const limited = await rateLimitSpend(req, "run");
+  if (limited) return limited;
   const body = (await req.json().catch(() => null)) as { confirmedMaxMicros?: unknown } | null;
   const max = body?.confirmedMaxMicros;
   if (typeof max !== "number" || !Number.isFinite(max) || max <= 0) return NextResponse.json({ error: "confirmedMaxMicros is required: the amount the user saw on the quote." }, { status: 400 });

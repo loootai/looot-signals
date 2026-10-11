@@ -21,20 +21,20 @@ describe("toCsv", () => {
 });
 
 describe("webhook", () => {
-  it("allows https and localhost http only", () => {
+  it("allows https on a public host only", () => {
     expect(isAllowedWebhook("https://hooks.example/x")).toBe(true);
-    expect(isAllowedWebhook("http://localhost:9000/x")).toBe(true);
+    expect(isAllowedWebhook("http://localhost:9000/x")).toBe(false);
     expect(isAllowedWebhook("http://hooks.example/x")).toBe(false);
     expect(isAllowedWebhook("file:///etc/passwd")).toBe(false);
   });
   it("posts the signals with an HMAC signature", async () => {
-    const f = vi.fn(async () => new Response("ok", { status: 202 }));
-    const status = await sendWebhook("https://hooks.example/x", [s({})], { secret: "k", fetch: f as unknown as typeof fetch, now: new Date("2026-10-10T00:00:00Z") });
+    const post = vi.fn(async (_t: { body: string; headers: Record<string, string> }) => 202);
+    const status = await sendWebhook("https://hooks.example/x", [s({})], { secret: "k", post, lookup: async () => [{ address: "93.184.216.34", family: 4 }], now: new Date("2026-10-10T00:00:00Z") });
     expect(status).toBe(202);
-    const [, init] = f.mock.calls[0] as unknown as [string, RequestInit];
-    const body = String(init.body);
+    const init = post.mock.calls[0][0];
+    const body = init.body;
     expect(JSON.parse(body)).toMatchObject({ source: "looot-signals", count: 1 });
-    expect((init.headers as Record<string, string>)["X-Signals-Signature"]).toBe(`sha256=${createHmac("sha256", "k").update(body).digest("hex")}`);
+    expect(init.headers["X-Signals-Signature"]).toBe(`sha256=${createHmac("sha256", "k").update(body).digest("hex")}`);
   });
   it("refuses a plain http target", async () => {
     await expect(sendWebhook("http://hooks.example/x", [])).rejects.toThrow(/https/);

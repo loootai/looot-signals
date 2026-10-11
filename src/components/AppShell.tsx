@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, ExternalLink, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
+import { BookOpen, ExternalLink, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
 import { SHELL, type ShellNavItem } from "./shell.config";
 
 /** Spend shown in the sidebar. Strings are pre-formatted by the layout so this file stays app-agnostic. */
@@ -72,7 +72,8 @@ const isActive = (path: string, item: ShellNavItem) => {
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** App frame shared by every looot app: fixed sidebar from 1024px, drawer below it. */
-export function AppShell({ demo, spend, children }: { demo: boolean; spend?: ShellSpend | null; children: React.ReactNode }) {
+/** demoLabel is the badge text, left out when the app runs on real data. signOut shows the Sign out button, only when an admin session exists. */
+export function AppShell({ demoLabel, signOut, spend, children }: { demoLabel?: string; signOut?: boolean; spend?: ShellSpend | null; children: React.ReactNode }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useCollapsed();
   const [open, setOpen] = React.useState(false);
@@ -132,14 +133,14 @@ export function AppShell({ demo, spend, children }: { demo: boolean; spend?: She
       </a>
 
       <aside className={`fixed inset-y-0 left-0 z-30 hidden flex-col bg-[var(--sidebar)] text-[var(--sidebar-fg)] transition-[width] duration-150 lg:flex ${collapsed ? "w-16" : "w-60"}`}>
-        <SidebarBody collapsed={collapsed} label="Main" demo={demo} spend={spend} path={path} onToggle={() => setCollapsed(!collapsed)} />
+        <SidebarBody collapsed={collapsed} label="Main" demoLabel={demoLabel} signOut={signOut} spend={spend} path={path} onToggle={() => setCollapsed(!collapsed)} />
       </aside>
 
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} aria-hidden="true" />
           <div ref={drawerRef} role="dialog" aria-modal="true" aria-label={`${SHELL.name} menu`} className="absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-[var(--sidebar)] text-[var(--sidebar-fg)] shadow-pop">
-            <SidebarBody collapsed={false} label="Main menu" demo={demo} spend={spend} path={path} onClose={() => setOpen(false)} />
+            <SidebarBody collapsed={false} label="Main menu" demoLabel={demoLabel} signOut={signOut} spend={spend} path={path} onClose={() => setOpen(false)} />
           </div>
         </div>
       )}
@@ -152,7 +153,7 @@ export function AppShell({ demo, spend, children }: { demo: boolean; spend?: She
           <Image src="/brand/looot-mark.svg" alt="" width={22} height={22} className="shrink-0 dark:hidden lg:hidden" />
           <Image src="/brand/looot-mark-white.svg" alt="" width={22} height={22} className="hidden shrink-0 dark:block dark:lg:hidden" />
           <p className="min-w-0 truncate text-14 font-medium text-ink">{title}</p>
-          {demo && <span className="shrink-0 rounded-control border border-line-strong bg-amber-soft px-1.5 py-0.5 text-11 font-medium text-amber lg:hidden">Demo</span>}
+          {demoLabel && <span className="shrink-0 rounded-control border border-line-strong bg-amber-soft px-1.5 py-0.5 text-11 font-medium text-amber lg:hidden">Demo</span>}
           {current?.action && (
             <Link href={current.action.href} className="ml-auto inline-flex h-10 shrink-0 items-center rounded-control bg-brand px-3 text-13 font-medium text-brand-ink hover:opacity-90 lg:h-8">
               {current.action.label}
@@ -167,7 +168,7 @@ export function AppShell({ demo, spend, children }: { demo: boolean; spend?: She
   );
 }
 
-function SidebarBody({ collapsed, label, demo, spend, path, onToggle, onClose }: { collapsed: boolean; label: string; demo: boolean; spend?: ShellSpend | null; path: string; onToggle?: () => void; onClose?: () => void }) {
+function SidebarBody({ collapsed, label, demoLabel, signOut, spend, path, onToggle, onClose }: { collapsed: boolean; label: string; demoLabel?: string; signOut?: boolean; spend?: ShellSpend | null; path: string; onToggle?: () => void; onClose?: () => void }) {
   const dark = useIsDark();
   const groups: { name: string | null; items: ShellNavItem[] }[] = [];
   const grouped = SHELL.nav.length > 6;
@@ -249,9 +250,9 @@ function SidebarBody({ collapsed, label, demo, spend, path, onToggle, onClose }:
             )}
           </div>
         )}
-        {demo && (
+        {demoLabel && (
           <span className={`inline-flex h-6 items-center justify-center rounded-control border border-amber/40 bg-amber-soft px-2 text-11 font-medium text-amber ${collapsed ? "mx-auto w-10 px-0" : "mr-auto"}`} title="Sample data. No looot calls, no charge.">
-            {collapsed ? "Demo" : "Demo data"}
+            {collapsed ? "Demo" : demoLabel}
           </span>
         )}
         <a href={SHELL.docsUrl} target="_blank" rel="noreferrer" className={small} title={collapsed ? "Docs" : undefined}>
@@ -268,6 +269,14 @@ function SidebarBody({ collapsed, label, demo, spend, path, onToggle, onClose }:
           {dark ? <Sun className="size-4 shrink-0" strokeWidth={1.5} /> : <Moon className="size-4 shrink-0" strokeWidth={1.5} />}
           {!collapsed && <span>{dark ? "Light theme" : "Dark theme"}</span>}
         </button>
+        {signOut && (
+          <form method="post" action="/api/auth/logout">
+            <button type="submit" title={collapsed ? "Sign out" : undefined} className={`${small} w-full`}>
+              <LogOut className="size-4 shrink-0" strokeWidth={1.5} />
+              {collapsed ? <span className="sr-only">Sign out</span> : <span>Sign out</span>}
+            </button>
+          </form>
+        )}
         {onToggle && (
           <button type="button" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} title={collapsed ? "Expand sidebar" : undefined} className={`${small} w-full`}>
             {collapsed ? <PanelLeftOpen className="size-4 shrink-0" strokeWidth={1.5} /> : <PanelLeftClose className="size-4 shrink-0" strokeWidth={1.5} />}
