@@ -2,6 +2,12 @@
 
 Built from the GitHub release notes. Each version links to its release page.
 
+## Unreleased
+
+- Sign-in in Chrome no longer fails with 403 "Cross-site request refused". The app sends `Referrer-Policy: no-referrer`, so the browser posts `Origin: null`. `sameOrigin()` now treats that as no origin and checks `Sec-Fetch-Site` (same-origin or none). A cross-site or missing `Sec-Fetch-Site` is still refused.
+- Job and funding parsers read the shapes a live run returned: LinkedIn jobs under `output.data.items` with `createdUtc`, and financing events with `relationships.company`.
+- LinkedIn job `postedLimit` is `24h`, `week` or `month`, and the funding `financing_types_normalized` input is a list. Both were rejected or ignored by the endpoints.
+
 ## 0.1.5 (2026-10-11)
 
 #### Money safety: period budget, reserve then settle, stable keys

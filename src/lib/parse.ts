@@ -44,7 +44,7 @@ export function toIso(v: unknown, now: Date): string | null {
 }
 
 /** The rows of a provider answer: the first array of objects, looking in the usual wrapper keys first. */
-export function rowsOf(result: unknown, preferred: string[] = ["data", "results", "items", "jobs", "news", "companies", "organic"]): Obj[] {
+export function rowsOf(result: unknown, preferred: string[] = ["data", "results", "items", "jobs", "news", "companies", "organic", "output"]): Obj[] {
   if (Array.isArray(result)) return result.filter(isObj);
   if (!isObj(result)) return [];
   for (const k of preferred) {
@@ -84,7 +84,7 @@ export function parseJobsIndex(result: unknown, now: Date): RawSignal[] {
         headline: `Hiring: ${title}`,
         detail: [company, location].filter(Boolean).join(", ") || undefined,
         evidenceUrl: pick(r, ["url", "jobUrl", "job_url", "link", "applyUrl", "final_url"]),
-        occurredAt: toIso(r.postedAt ?? r.posted_at ?? r.datePosted ?? r.date_posted ?? r.listedAt ?? r.postedDate ?? r.posted, now),
+        occurredAt: toIso(r.postedAt ?? r.posted_at ?? r.createdUtc ?? r.datePosted ?? r.date_posted ?? r.listedAt ?? r.postedDate ?? r.posted, now),
       },
     ];
   });
@@ -118,7 +118,9 @@ export function parseFunding(result: unknown, now: Date): RawSignal[] {
   for (const c of included) if (typeof c.id === "string" && isObj(c.attributes)) companies.set(c.id, c.attributes);
   return rowsOf(result).flatMap((r) => {
     const a = isObj(r.attributes) ? r.attributes : r;
-    const rel = isObj(r.relationships) && isObj(r.relationships.companies) && Array.isArray(r.relationships.companies.data) ? r.relationships.companies.data.find(isObj) : undefined;
+    const relObj = isObj(r.relationships) ? (r.relationships.company ?? r.relationships.companies) : undefined;
+    const relData = isObj(relObj) ? relObj.data : undefined;
+    const rel = Array.isArray(relData) ? relData.find(isObj) : isObj(relData) ? relData : undefined;
     const co = (rel && typeof rel.id === "string" ? companies.get(rel.id) : undefined) ?? (isObj(a.company) ? a.company : {});
     const type = pick(a, ["financing_type_normalized", "financing_type", "category"]);
     const amount = pick(a, ["amount_normalized", "amount"]);

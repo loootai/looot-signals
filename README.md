@@ -1,4 +1,6 @@
-<p align="center"><img src="assets/hero.png" alt="looot-signals" width="100%"></p>
+![looot-signals: the signal feed of a live run on 2026-10-13, looot watching its own market (Clay, Apollo.io, ZoomInfo and seven more), with the price dialog](docs/media/banner.png)
+
+<sub>Logos and names belong to their owners. Public data from a live run on 2026-10-13. No affiliation.</sub>
 
 # looot-signals
 
@@ -12,6 +14,60 @@ TheirStack lists API plans from $49 a month (1,500 API credits) and one-time app
 
 ![Signal feed, light](docs/screenshots/feed-light.png)
 ![Signal feed, dark](docs/screenshots/feed-dark.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/card-hiring.png" alt="Hiring signals: GTM engineer and revenue operations job ads from LinkedIn, each with its evidence link"></td>
+<td width="50%"><img src="docs/media/card-funding.png" alt="Funding signals: three Series A rounds with company, amount and date"></td>
+</tr>
+<tr>
+<td><img src="docs/media/card-news.png" alt="News on ZoomInfo: the DoubleO.ai purchase and new integrations, one query per watched company"></td>
+<td><img src="docs/media/card-leadership.png" alt="Leadership changes from Google News with the people's names hidden"></td>
+</tr>
+<tr>
+<td><img src="docs/media/card-quote.png" alt="The price dialog: 18 calls and at most $0.1626 before anything is spent"></td>
+<td><img src="docs/media/card-budget.png" alt="The Costs page: daily and monthly budget, used, reserved and remaining"></td>
+</tr>
+</table>
+
+Every image is the real app (a production build) reading the state of a live paid run on 2026-10-13. They say "Live run · 2026-10-13". Nothing on them is demo data. The names of people in leadership headlines are hidden in the images, they stay in the app.
+
+![A 30-second walkthrough: the feed, funding, hiring, news, leadership, triggers, runs, costs and the price dialog](docs/media/demo.gif)
+
+The same walkthrough as MP4: [docs/media/demo.mp4](docs/media/demo.mp4).
+
+## Live run: looot watching its own market
+
+`examples/looot-market.yaml` points the feed at looot's own market: Clay, Apollo.io, ZoomInfo, Apify, Bright Data, Firecrawl, Exa, Tavily, People Data Labs and Coresignal. One news trigger per company, plus market-wide triggers for GTM and revenue operations hiring, job ads that mention Clay or n8n, seed and Series A rounds, and new heads of sales or revenue.
+
+Real run on 2026-10-13 with a $0.25 cap:
+
+| | |
+|---|---|
+| Calls | 18 paid, plus 1 that failed and cost nothing (see below) |
+| Charged | $0.1626 (the quote said at most $0.1626) |
+| Signals | 108: 57 news, 31 hiring, 17 leadership, 3 funding |
+| Run ids | looot `runs list`, endpoints `anyapi-run-linkedin-jobs-thin`, `theirstack-jobs-search`, `predictleads-discover-financing-events`, `serper-news` |
+
+The Clay or n8n job ad search is 60% of the bill: $0.0981 for 3 ads. The other 17 calls cost $0.0645 together.
+
+What the run showed, good and bad:
+
+- Account news works. ZoomInfo's DoubleO.ai purchase and its n8n and ClickUp integrations, Bright Data's DigitalOcean partnership and Firecrawl's $75M Series B all came back with the source and date.
+- Google News ignores quotes in places. "People Data Labs" returned any headline with "data" and "labs" (TRM Labs, Turba Labs), and "Apify" returned a women-in-tech hackathon. Exa had 1 result and Coresignal had none.
+- The news parser names a company for 6 of the 57 news rows. The rest show "Company not named". A trigger per company already says which company it is about.
+- Leadership is not specific to this market. The query has no company in it, so the 17 results are heads of sales at a motor club, a cyber firm and a football club. Treat it as a demo of the shape, or narrow `roles`.
+- Hiring found 28 LinkedIn jobs (GTM engineer, growth engineer, revenue operations manager) and 3 job ads from the text search: two mention n8n (Buynomics, C9 Group) and one mentions Clay (Fynd).
+- Funding returned 3 Series A rounds of $3M, $12M and $30M, none in looot's market.
+
+Three bugs in this repo showed up on the first run and are fixed. LinkedIn job `postedLimit` has to be `24h`, `week` or `month`, not `past week`. The financing `financing_types_normalized` input has to be a list. And the parsers did not read the real answers: LinkedIn jobs sit under `output.data.items` with a `createdUtc` time (the first run found 0 jobs from 3 paid calls), and the financing company is in `relationships.company` (not `companies`). The README said parsing was untested against real responses. For these four endpoints it now is. The founder and investor lookups were not run and are still unchecked.
+
+Run it yourself:
+
+```bash
+npm run signals -- --triggers examples/looot-market.yaml --dry-run      # 18 calls, at most $0.1626
+LOOOT_TOKEN=... npm run signals -- --triggers examples/looot-market.yaml --cap 0.25 --out signals-out
+```
 
 ## What you need
 
@@ -104,7 +160,7 @@ Four limits stand between a request and a charge, checked in this order: the quo
 - Before each paid call the app reserves its list price in `budget.json` (next to the state file, or `SIGNALS_BUDGET`), under a lock file, and refuses the call if used plus reserved plus the price would pass the daily or the monthly budget. Two requests started together cannot both pass. When the call ends the reservation becomes the real cost. A call that looot answered with an error releases it. A call still running at looot (`pending`) keeps its reservation. It is never recorded as failed at $0 and the budget is not handed back early. A refused call is listed as `skipped_budget` with the limit it hit.
 - The next run reads every pending call back with `GET /v1/runs/{id}` and settles the ones that ended, to their real cost. If looot cannot be reached, or the app died before it got a run id, the reservation stays for 24 hours and is then released. A network error mid-call is treated the same way, because the call may have been accepted.
 - The sidebar and the Costs page show used, reserved and remaining for today and this month. At the budget the run says which limit it hit.
-- Typical run at list price. The five triggers in the example file cost at most $0.731 (the dry run above). That is $0.531 for the searches plus $0.20 for founder and investor lookups (2 companies x 2 lookups x $0.05). With the sample answers the same run reads as $0.38, because most searches return fewer rows than their limit and the lookups are the only part billed in full. No real run was priced.
+- Typical run at list price. The five triggers in the example file cost at most $0.731 (the dry run above). That is $0.531 for the searches plus $0.20 for founder and investor lookups (2 companies x 2 lookups x $0.05). With the sample answers the same run reads as $0.38, because most searches return fewer rows than their limit and the lookups are the only part billed in full. The live run above is priced for real: $0.1626.
 - Founder and investor lookups are per company and run after every search, so they never use up the cap before a search has run. Each lookup is checked against the cap on its own, has its own idempotency key, and is skipped (and listed as `skipped_budget`) when it would cross the cap. A company that already has the lookup is never paid for again.
 - Failed calls are not charged by looot.
 - Every call has a stable `idempotencyKey`: the endpoint, a hash of the normalised input (trimmed, lowercased, keys sorted) and the refresh period. The key has no date or clock time in it and does not name the trigger. The refresh period is the whole number `floor(time / 24 hours)` for searches and `floor(time / 30 days)` for founder and investor lookups. Inside a period a repeated request gets the same key, is answered from the stored result in `budget.json` with no call and no reservation, and is never charged twice. A new period is a deliberate fresh request with its own key, because new jobs, rounds and headlines appear daily. If a stored result is missing, looot replays the same key without charging again.
@@ -159,7 +215,7 @@ Prices are looot list prices read from the public catalog on 2026-10-10. Result-
 | Founders of a funded company | company.founders | aviato-company-founders | $0.05 per call |
 | Investors in a funded company's latest round | company.funding | aviato-company-funding-rounds | $0.05 per call |
 
-The five triggers in the example file cost at most $0.731 per run at list price: $0.531 for the searches (0.0005 x 2 + 0.327 + 0.20 + 0.001 x 3) plus $0.20 for lookups (founders 2 x $0.05 + investors 2 x $0.05). With the sample answers the same run reads as $0.38 ($0.18 for the searches plus 4 lookups x $0.05). Treat $0.38 as an illustration. No real run was priced.
+The five triggers in the example file cost at most $0.731 per run at list price: $0.531 for the searches (0.0005 x 2 + 0.327 + 0.20 + 0.001 x 3) plus $0.20 for lookups (founders 2 x $0.05 + investors 2 x $0.05). With the sample answers the same run reads as $0.38 ($0.18 for the searches plus 4 lookups x $0.05). Treat $0.38 as an illustration. The live run above is priced for real: $0.1626.
 
 ### Founders and investors
 
@@ -259,8 +315,8 @@ How to file an issue. Open one at https://github.com/loootai/looot-signals/issue
 
 ## Status
 
-- No paid looot run was made. Response parsing is built from each provider's public docs and from fixtures in `src/demo/fixtures.ts`. Parsers read several field names per value and return nothing for an answer they do not understand, but no real response body was checked. Expect to adjust them on the first real run.
-- The `postedLimit` wording for the LinkedIn job index and the `date` field names of the job-change feed come from parameter descriptions, not from a live call.
+- One live run on 2026-10-13 checked the LinkedIn job index, the job ad text search, financing events and Google News against real responses (see Live run). The job-change feed and the founder and investor lookups have not been run live. Their parsers follow the endpoint descriptions and fixtures in `src/demo/fixtures.ts`. Expect to adjust them on the first real run.
+- The `date` field names of the job-change feed come from parameter descriptions, not from a live call.
 - News headlines have no structured company. The company is a guess from the headline and is empty when the pattern does not fit.
 - Demo and tests run against fixtures. 283 tests cover parsers, dedupe, the engine (cap, period budget, reservations, idempotency keys, pending, failures), CSV, the webhook and its address checks, the looot client, the founder and investor lookups (quote, cap, idempotency keys, pending, failures), the CLI, and the auth gate (every route closed without a session, sign-in, lockout, CSRF, spend cap, budget route and rate limit), with HTTP mocked.
 

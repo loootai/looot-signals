@@ -14,7 +14,8 @@ export type GateResult = { ok: true; policy: AdminPolicy; sid?: string } | { ok:
 export function sameOrigin(h: Headers): boolean {
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const origin = h.get("origin");
-  if (origin) {
+  // Referrer-Policy: no-referrer makes browsers send "Origin: null" on form posts. Fall through to Sec-Fetch-Site.
+  if (origin && origin !== "null") {
     try {
       return !!host && new URL(origin).host === host;
     } catch {

@@ -76,9 +76,9 @@ function newsWindow(days: number): string {
 }
 
 function postedWindow(days: number): string {
-  if (days <= 1) return "past 24 hours";
-  if (days <= 7) return "past week";
-  return "past month";
+  if (days <= 1) return "24h";
+  if (days <= 7) return "week";
+  return "month";
 }
 
 export interface CallInput {
@@ -110,7 +110,7 @@ export function callsFor(t: Trigger, now: Date): CallInput[] {
     ];
   }
   if (source === "funding") {
-    return [{ label: t.stages.join(", ") || "any round", input: { ...(t.stages.length > 0 ? { financing_types_normalized: t.stages.join(",") } : {}), ...(country ? { company_location: country } : {}), limit: Math.min(t.limit, 100) } }];
+    return [{ label: t.stages.join(", ") || "any round", input: { ...(t.stages.length > 0 ? { financing_types_normalized: t.stages } : {}), ...(country ? { company_location: country } : {}), limit: Math.min(t.limit, 100) } }];
   }
   if (source === "job_changes") {
     return t.roles.map((role) => ({ label: role, input: { new_role: role, dateFrom: dateFrom(now, t.maxAgeDays), limit: Math.min(t.limit, 100), sort_by: "date", sort_order: "desc", ...(country ? { countries: country } : {}) } }));

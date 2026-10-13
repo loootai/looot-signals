@@ -1,0 +1,102 @@
+# looot-signals pointed at looot's own market: the data tools that sit next to looot.
+# One news trigger per company (funding, launches, deals, leaders), plus market-wide hiring,
+# funding rounds and leadership triggers. About $0.16 at list price per run.
+triggers:
+  - id: gtm-engineer-hiring
+    name: Hiring GTM and revenue ops roles
+    type: hiring
+    titles: ["GTM engineer", "growth engineer", "revenue operations manager"]
+    maxAgeDays: 7
+    limit: 10
+
+  - id: clay-n8n-job-ads
+    name: Job ads that mention Clay or n8n
+    type: hiring
+    titles: ["revenue operations", "growth"]
+    keywords: ["Clay", "n8n"]
+    maxAgeDays: 14
+    limit: 3
+
+  - id: recent-rounds
+    name: Raised a seed or Series A recently
+    type: funding
+    stages: ["seed", "series_a"]
+    maxAgeDays: 30
+    limit: 5
+
+  - id: new-revenue-leaders
+    name: New head of sales or revenue
+    type: leadership
+    roles: ["chief revenue officer", "head of sales", "VP sales"]
+    maxAgeDays: 14
+    limit: 10
+
+  - id: clay-news
+    name: Clay news
+    type: news
+    query: '"Clay" GTM data (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: apolloio-news
+    name: Apollo.io news
+    type: news
+    query: '"Apollo.io" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: zoominfo-news
+    name: ZoomInfo news
+    type: news
+    query: '"ZoomInfo" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: apify-news
+    name: Apify news
+    type: news
+    query: '"Apify" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: bright-data-news
+    name: Bright Data news
+    type: news
+    query: '"Bright Data" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: firecrawl-news
+    name: Firecrawl news
+    type: news
+    query: '"Firecrawl" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: exa-news
+    name: Exa news
+    type: news
+    query: '"Exa" "exa.ai" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: tavily-news
+    name: Tavily news
+    type: news
+    query: '"Tavily" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: people-data-labs-news
+    name: People Data Labs news
+    type: news
+    query: '"People Data Labs" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5
+
+  - id: coresignal-news
+    name: Coresignal news
+    type: news
+    query: '"Coresignal" (raises OR funding OR acquires OR launches OR partnership OR hires OR appoints)'
+    maxAgeDays: 30
+    limit: 5

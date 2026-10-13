@@ -62,3 +62,19 @@ describe("source parsers on the demo fixtures", () => {
     expect(parseNews(null, NOW)).toEqual([]);
   });
 });
+
+describe("shapes seen in a live run on 2026-10-13", () => {
+  it("reads LinkedIn job rows under output.data.items and createdUtc", () => {
+    const body = { items: 1, output: { data: { items: [{ id: "1", url: "https://www.linkedin.com/jobs/view/x-1", title: "Revenue Operations Manager", company: "Orbital", location: "New York", createdUtc: 1791504000 }] } } };
+    const s = parseJobsIndex(body, NOW);
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ company: "Orbital", headline: "Hiring: Revenue Operations Manager", occurredAt: "2026-10-09T00:00:00.000Z" });
+  });
+  it("finds the company of a financing event through relationships.company", () => {
+    const body = {
+      data: [{ id: "e1", type: "financing_event", attributes: { financing_type_normalized: "series_a", amount_normalized: 12000000, effective_date: "2026-10-11" }, relationships: { company: { data: { id: "c1", type: "company" } } } }],
+      included: [{ id: "c1", type: "company", attributes: { domain: "autobia.example", company_name: "Autobia" } }],
+    };
+    expect(parseFunding(body, NOW)[0]).toMatchObject({ company: "Autobia", domain: "autobia.example" });
+  });
+});
